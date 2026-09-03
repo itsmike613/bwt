@@ -47,17 +47,32 @@
 
   <main id="match" hidden>
     <section id="matchcard">
-      <h1>BedWars</h1>
-      <p>Room <strong id="matchcode"></strong> passed Milestone 1 lobby validation.</p>
-      <p id="network">Establishing host connection…</p>
-      <p class="muted">Milestone 2 gameplay is intentionally not started in this build.</p>
+      <h1>Loading match</h1>
+      <p>Room <strong id="matchcode"></strong></p>
+      <p class="muted">Loading the shared editor map and BedWars state…</p>
     </section>
   </main>
 
   <div id="stage" hidden></div>
   <div id="hud" hidden>
     <div id="cross"></div>
-    <div id="hint">Click to capture mouse · WASD move · Space jump · Ctrl sprint · Shift crouch</div>
+    <div id="beds"></div>
+    <div id="info"><span id="network">WebRTC 0/0 connected</span></div>
+    <div id="notice" hidden></div>
+    <div id="countdown" hidden></div>
+    <div id="bottom">
+      <div id="health">20 / 20</div>
+      <div id="track"><div id="bar"></div></div>
+      <div id="hotbar"></div>
+    </div>
+    <div id="inventory" hidden>
+      <section id="bag">
+        <h2>Inventory</h2>
+        <div id="grid"></div>
+        <p>Click one slot, then another to swap. Press E to close.</p>
+      </section>
+    </div>
+    <div id="hint">Click to capture mouse · WASD move · Space jump · Ctrl sprint · Shift crouch · E inventory · 1–9 hotbar</div>
   </div>
   <script type="module" src="./mode/game.js"></script>
 </body>

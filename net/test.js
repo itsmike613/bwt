@@ -1,10 +1,14 @@
 import { claim, code, cycle, elect, form, join, member, players, random, valid } from '../data/room.js';
 import { admit } from './admit.js';
 import { readFileSync } from 'node:fs';
+import { config, ready } from '../data/firebase.js';
 
 function assert(value, message) {
   if (!value) throw new Error(message);
 }
+
+assert(ready(), 'accepted Firebase client configuration is present in data/firebase.js');
+assert(config.projectId === 'bwt1-243d7', 'accepted Firebase project remains configured');
 
 
 const fire = readFileSync(new URL('./firebase.js', import.meta.url), 'utf8');
@@ -338,6 +342,8 @@ peer.links.get('b').channel.fire('open');
 assert(peer.count() === 1, 'open DataChannel contributes to connected peer count');
 peer.data({ kind: 'test' });
 assert(peer.links.get('b').channel.sent.some(item => item.includes('test')), 'host broadcast uses open DataChannels');
+assert(peer.send('b', { kind: 'direct' }), 'host can send a targeted gameplay message over an open DataChannel');
+assert(peer.links.get('b').channel.sent.some(item => item.includes('direct')), 'targeted DataChannel message reaches the requested peer');
 
 const clientwire = new Wire();
 const client = new Peer(clientwire, 'b', 'host');

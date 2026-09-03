@@ -2,247 +2,141 @@
 
 ## Current milestone
 
-Milestone 1 — Foundation
+Milestone 2 — BedWars
 
-Current slice: Firebase/auth/rooms/lobby/skins and initial WebRTC signalling architecture.
+Milestone 1 is complete and accepted through the project owner's real two-browser Firebase/WebRTC test on September 3, 2026.
 
-Milestone 1 implementation is now complete in code. Live Firebase Console configuration and multi-browser verification still require the project owner's Firebase project before Milestone 2 begins.
+Milestone 2 current slice: exported-map match loading, team/bed/death/respawn state, inventory/HUD, generators/resources, player-block foundations, and win-condition foundations.
 
-## Milestone 1 internal implementation order
+## Milestone 1 — COMPLETE
 
-1. Voxel world storage and chunk ownership.
-2. Chunk face culling and grouped Three.js rendering.
-3. Shared fixed-step loop and input capture.
-4. Voxel AABB collision and Minecraft-inspired player movement.
-5. Camera and pointer-lock mouse look.
-6. Voxel DDA raycasting.
-7. Shared placement/breaking rules with map-vs-player provenance.
-8. Versioned shared map read/write format.
-9. Real editor using the same world/render/input/interaction core.
-10. Landing shell and skin registry.
-11. Firebase anonymous auth and room claim/join.
-12. Presence and lobby state.
-13. Team assignment, randomize, and start validation.
-14. Initial WebRTC signalling and authoritative-host connection structure.
+Live verification accepted by the project owner:
 
-## Completed
+- two separate anonymous Firebase users can join the same room from separate browser tabs;
+- both players remain distinct room entries;
+- the original creator remains host;
+- team cycling, Randomize, and Start validation work;
+- Start moves both clients into match state;
+- both browsers report WebRTC DataChannels `1/1 connected`.
 
-- Permanent `spec.md` copied from the authoritative V1 specification.
-- `status.md` established as the running implementation record.
-- Static GitHub Pages-friendly project structure with native ES modules.
-- Three.js pinned to 0.185.1 through an import map.
-- Shared fixed-step runtime/loop.
-- Shared keyboard and pointer-lock mouse input.
-- Sparse 16×16×16 chunked voxel storage.
-- Separate block provenance: map blocks vs player-placed blocks.
-- Visible-face chunk meshing; no mesh-per-voxel architecture.
-- 32×32 nearest-filter texture support with replaceable placeholder PNG files.
-- Shared first-person camera.
-- Shared voxel AABB collision.
-- Shared voxel DDA raycasting.
-- Shared placement validation that rejects placement inside the player body.
-- Shared breaking foundation that protects original map blocks in game mode.
-- Versioned JSON map format.
-- Real `editor.html` using the shared core.
-- Editor block palette driven from the shared block registry.
-- Required editor marker metadata and editor-only marker visuals with labels.
-- Repeating Diamond/Emerald generator markers are supported for maps with multiple generator islands.
-- Selected marker metadata can be cleared from the editor without touching voxel geometry.
-- Editor map import/export.
-- New editor world starts with one block at 0,0,0.
-- Simple `index.html` landing shell with username, skin, invite, Create, and Join controls.
-- Skin registry foundation with local placeholder choices.
-- Game-mode shared-core preview path (`index.html?preview=1`) using the same runtime, map loader, physics, raycast, placement, and protected-block rules as the editor.
-- Firebase browser-module configuration isolated in `data/firebase.js` and initialized only through `net/firebase.js`.
-- Firebase setup guide in `firebase.md` and Milestone 1 RTDB rules in `rules.json`.
-- Firebase modular browser SDK pinned to 12.18.0 for Authentication and Realtime Database without adding a bundler/framework.
-- Anonymous Authentication through `net/auth.js`, using session persistence so separate testing windows can hold separate anonymous users while a tab refresh can retain its session.
-- Atomic invite-code room claiming with an RTDB transaction at the room path; the creator becomes the initial host.
-- Atomic room joining with transaction-based 10-player capacity checks and explicit not-found/full/already-started results. Fresh-client Join now holds an exact-room `onValue` listener open through the transaction, waits for its first synchronized room value, and treats only an absent listener value or absent authoritative reread as `missing`. Unexpected `null` transaction callbacks trigger a `get()` reread and a bounded three-attempt retry rather than being mislabeled Room not found.
-- Landing validation now uses small field/action inline red errors only; normal validation does not use an error page or modal.
-- Firebase presence through `.info/connected` and `onDisconnect`, with disconnect removal queued before the player is refreshed online.
-- Lobby room listener with simple synchronized username/player cards.
-- Lobby host ownership and deterministic promotion of a remaining player if the host disappears while the room is still in lobby state.
-- Host team cycling in the required order: Unassigned → Red → Blue → Unassigned, with the 5-player team cap enforced.
-- Host Randomize uses a shuffled player order and assigns Red/Blue as evenly as possible.
-- Start validation enforces at least 2 players, every player assigned, both teams populated, and no team over 5 players. The same validation is repeated inside the host Start transaction.
-- Three legally original local 64×64 placeholder skins are stored under `asset/skin/` and synchronized by skin ID in each Firebase player record.
-- `core/skin.js` provides a Minecraft-compatible 64×64 cuboid player renderer for head/torso/arms/legs, including the standard outer hat/jacket/sleeve/pants layers, plus pixelated lobby face previews.
-- Initial WebRTC architecture is split between `net/peer.js` and `net/signal.js`: the match host owns one ordered DataChannel to each other player, while a separate top-level RTDB signalling path carries only offer/answer/ICE messages.
-- Signalling messages are removed after handling; no rendering-rate coordinates or animation frames are written to Firebase.
-- After a valid Start, the UI stays inside a Milestone 1 connection placeholder and reports DataChannel progress rather than starting unsynchronized Milestone 2 gameplay.
+Completed Milestone 1 systems retained unchanged unless Milestone 2 integration required a narrow extension:
 
-## Movement/controller repair completed
+- shared fixed-step runtime, input, pointer lock, voxel world, chunk meshing, collision, player movement, camera, raycasting, placement/breaking, map loading/saving, and editor;
+- 16×16×16 sparse chunks with grouped visible-face meshes and dirty-chunk rebuilding;
+- original-map versus player-placed block provenance;
+- editor Creative flight using collision-based `Player`; separate noclip `Fly` controller for spectators;
+- editor markers and versioned JSON import/export;
+- landing UI and synchronized 64×64 local placeholder skins;
+- Firebase browser initialization, Anonymous Authentication with session persistence, atomic room claim/join, presence, lobby host ownership, team controls, Randomize, and Start validation;
+- host-centered WebRTC DataChannel topology with RTDB only for signalling.
 
-- Corrected camera-relative movement basis so W follows the camera's forward direction, S moves backward, A left, and D right.
-- Direction math is centralized in `core/motion.js` and reused rather than duplicated between controllers.
-- Ground movement now uses firmer target acceleration/deceleration instead of the previous floaty interpolation.
-- Air control and airborne drift are separate from grounded acceleration.
-- Mouse-look processing now occurs on render frames instead of being limited to fixed 60 Hz physics ticks.
-- Physics position is interpolated for rendering between fixed simulation steps.
-- Grounded walking, jumping, gravity, landing, sprinting, crouching, standing clearance, and crouch edge protection remain in the shared `Player` controller.
-- Editor now starts grounded using the shared `Player` controller rather than starting in a separate free-flight controller.
-- Double-tap Space toggles editor Creative Mode flight.
-- Double-tap Space again disables flight; gravity resumes and the player falls/lands normally.
-- While editor flight is enabled, Space rises and Shift descends.
-- Creative flight uses the same voxel AABB collision mover and therefore collides with floors, walls, and ceilings; it is not noclip.
-- Editor block placement now checks the editor player's collision body as well.
-- The existing `Fly` path is no longer used by the editor and remains separate for future noclip spectator behavior; it shares the corrected directional basis.
-- Input state is cleared on blur/pointer-lock loss to reduce stuck-key behavior.
-- Movement, flight, mouse sensitivity, and double-tap timing remain centralized in `data/tune.js`.
-- Holding Space while grounded now continuously requests jumping, so the player jumps again as soon as landing/support is regained without requiring a key release.
-- A centralized 0.12-second jump buffer preserves jump input pressed shortly before landing.
-- Jump consumption runs both before movement and immediately after collision/support resolution, so a buffered or held jump can continue cleanly from a landing without an avoidable dead tick.
-- Creative flight still toggles only from distinct Space presses; holding Space by itself does not accidentally trigger the double-tap flight toggle.
-- Ground support detection now checks a thin support slab strictly below the player's feet rather than relying on an AABB that could include the player's current vertical cell. This keeps support reliable on one-block-high landings without adding auto-step.
+The accepted Firebase Web client configuration is permanently stored in `data/firebase.js` and must remain in future project ZIPs unless the project owner explicitly requests otherwise.
 
-## Movement tests
+## Milestone 2 — implemented in this build
 
-`node core/test.js` currently passes tests covering:
+- Actual match mode loads `data/map.json` through the same `core/map.js` loader used for editor exports.
+- Match startup validates required Red/Blue spawn, bed, forge, spectator, Diamond, and Emerald markers rather than hardcoding island geometry.
+- The existing small placeholder map now contains marker metadata only so Milestone 2 can be browser-tested immediately. It is not intended as the real BedWars map.
+- Red and Blue players spawn at their editor-defined team spawn markers.
+- Beds are simple replaceable cuboid visuals positioned from editor markers.
+- Own-team bed destruction is rejected; enemy bed state is host-authoritative over the existing DataChannel foundation.
+- 20 HP player state and a numeric health progress bar above the hotbar.
+- Nine-slot hotbar with 1–9 selection.
+- 27 storage slots plus 9 hotbar slots = 36 general inventory slots.
+- Stackable resource/block inventory foundations with 64-item stack caps.
+- E opens/closes the simple 36-slot inventory; pointer lock is released while open.
+- Death state distinguishes respawn waiting versus permanent elimination based on current team-bed state.
+- Respawning players are hidden to remote living players, frozen at the editor-defined spectator waiting marker, retain camera look, and see a local 3 → 2 → 1 countdown.
+- Host triggers respawn after the centralized three-second delay and restores health to 20 at the team spawn.
+- Players dying after their bed is gone become permanently eliminated.
+- Eliminated local players use the existing separate `Fly` controller for free-flight noclip spectator movement.
+- Generic generator class supports arbitrary outputs/intervals.
+- Each team forge is one generator at one marker producing both Iron and Gold.
+- Diamond and Emerald generator markers create their corresponding generic generators.
+- Generator timing constants are centralized in `data/balance.js`; current V1 foundation values are Iron 2s, Gold 8s, Diamond 30s, Emerald 45s.
+- Host owns generator spawning and sends drop/countdown events over DataChannels; no per-second generator countdown writes are made to Firebase.
+- Resource entities use four pooled `THREE.InstancedMesh` groups (Iron/Gold/Diamond/Emerald) instead of one scene object per dropped resource.
+- Drop count is capped in centralized configuration to avoid uncontrolled entities.
+- Living players automatically pick up nearby resource drops; the host owns drop removal and sends the resulting inventory pickup event.
+- Diamond/Emerald holograms are local canvas sprites and update visible text only when the displayed whole-second value changes.
+- Remote player movement uses the existing WebRTC channel at a modest 10 Hz foundation rate and local visual smoothing; Firebase is not used for gameplay-rate positions. This is an initial Milestone 2 use of the established transport, not the final Milestone 5 networking/interpolation pass.
+- Player block event foundations support Wool, Wood, End Stone, and Obsidian IDs from the existing block registry.
+- Placement continues to reject the local player's collision body using the shared `Build` helper.
+- Original loaded map blocks remain provenance kind 1 and cannot be broken during matches.
+- Player-placed blocks remain provenance kind 2 and are the only normal voxel blocks accepted by match breaking.
+- `Build.spot()` was added as a narrow shared-core extension so networked placement can validate a target without dirtying/remeshing a chunk merely to test legality.
+- BedWars state tracks bed existence, bed breaker identity, living/dead/eliminated state, and winner foundations.
+- A team wins when its enemy bed is gone and every enemy player has become permanently eliminated. The current Milestone 2 UI shows a simple centered winner message; the full victory/statistics screen remains Milestone 5.
+- Fall damage foundation is connected to the 20 HP system using centralized safe-fall configuration; void death uses the centralized void height.
 
-- W/S/A/D at yaw 0°, +90°, 180°, and -90°.
-- Grounded spawn and floor collision.
-- Ground walking without sinking/falling through blocks.
-- Jumping and landing.
-- Crouch body height and standing restoration.
-- Crouch edge protection on a single block.
-- Double-tap Space enabling Creative Mode flight.
-- Flight hover with gravity disabled.
-- Space rise while flying.
-- Shift descent while flying.
-- Horizontal flight collision against a wall.
-- Vertical flight collision against a ceiling.
-- Second double-tap Space disabling flight.
-- Normal falling and landing after flight is disabled.
-- Mouse yaw/pitch application on render frames.
-- Holding Space through repeated landings produces repeated jumps.
-- A released Space press shortly before landing is consumed by the jump buffer after landing.
-- Continuous sprint-jumping across flat terrain.
-- Falling onto a one-block-high platform restores grounded/support state and permits an immediate next jump.
-- Continuous sprint-jumping onto a one-block-high section, jumping again from that raised support, then continuing off the raised section.
-- Walking into one-block-high terrain without jumping remains blocked; no auto-step behavior was introduced.
-- Holding Space in grounded Creative mode does not accidentally toggle flight; the existing double-tap flight tests still pass.
-- Dirty-chunk regression coverage: no-op deletes do not create chunks, identical/provenance-only writes do not schedule visual rebuilds, and an occupancy change at a chunk boundary dirties the two affected chunks.
-- Existing map protection, player-block breaking, map round-trip, and marker round-trip tests.
+## Milestone 2 intentionally unfinished / later milestones
 
-All project JavaScript files also pass `node --check` syntax validation.
+These are not missing from the requested Milestone 2 slice; they belong to later frozen milestones:
 
-A headless Chromium WebGL launch was attempted in the build container, but that environment cannot initialize EGL/WebGL, so interactive pointer-lock feel still needs to be verified in a normal browser by the project owner.
+- melee combat, swords, damage authority against other players, knockback, recent-attacker attribution, crack overlays, timed tool breaking, TNT, Fireballs, and attack/break swing refinement — Milestone 3;
+- Item Shop, Island Shop, purchases, armor upgrades, sword upgrades, tool purchases, Golden Apples, Forge I/II purchase flow, and final balance — Milestone 4;
+- final authoritative networking/refinement, reconnect behavior, active-match host disconnect recovery, End Game/New Game, chat, room cleanup, final Rules hardening, victory statistics — Milestone 5;
+- sound/presentation/performance polish and Chromebook profiling — Milestone 6.
 
-## Core engineering/performance audit
+Because shops are Milestone 4, this build does not grant free Wool/Wood/End Stone/Obsidian merely to make manual block placement easy. The block inventory/placement/breaking foundation is implemented and testable in code; normal acquisition will come from the specified shop economy rather than adding a temporary gameplay rule.
 
-Inspected the existing shared runtime, world, mesher, collision, input, raycast, editor marker, and render paths with Chromebook performance as an explicit constraint. No architectural rewrite was justified.
+## Tests and verification
 
-Changes made:
+Automated tests currently pass:
 
-- Kept the existing sparse 16×16×16 chunk architecture and grouped visible-face meshing.
-- Added a dirty-chunk set. `Runtime.sync()` now processes only chunks that are actually dirty instead of iterating every loaded chunk on every rendered frame.
-- `World.set()` now ignores identical writes and no-op deletes do not allocate empty chunks. Provenance-only changes update metadata without forcing a visual remesh.
-- Neighbor chunks are dirtied at boundaries only when voxel occupancy changes, because texture/provenance changes inside one occupied voxel do not change the neighboring chunk's hidden-face geometry.
-- Added a one-entry chunk lookup cache in `World` so repeated collision/world queries inside the same chunk avoid rebuilding string keys and repeating map lookups.
-- Reworked the collision hot path to use scalar bounds internally instead of allocating temporary position/AABB objects for every movement probe. The public `box()` helper remains for infrequent placement/standing checks.
-- Removed the unused per-tick collision result-object allocation.
-- Editor/game interaction code now performs voxel DDA raycasting only when the current foundation actually has a left/right interaction click, avoiding an otherwise unnecessary raycast and Three.js vector allocation every physics tick.
-- Verified chunk remeshing already removes old scene groups and disposes replaced geometries. `World.clear()` also removes chunk groups and disposes their geometries. Editor marker redraw already disposes marker geometry, material, and generated label textures.
-- Kept antialiasing disabled and the existing pixel-ratio cap; no dynamic shadows or other expensive rendering features were introduced.
-- Preserved fixed-step 60 Hz physics and render interpolation exactly.
-- Preserved the same shared `Player`, collision, world, renderer, and map systems for editor and game.
+- `node core/test.js`
+  - movement directions at multiple yaws;
+  - grounded collision, jumping, held/buffered jumping, sprint-jumping over flat/raised terrain, crouch edge protection;
+  - Creative flight toggle and collision;
+  - falling/landing;
+  - map/provenance/chunk dirtying foundations.
+- `node net/test.js`
+  - room/lobby validation and transactions;
+  - mocked Join retry/control flow (explicitly mocked, not claimed as Firebase-runtime proof);
+  - host election/team logic;
+  - initial host-star WebRTC offer/answer/ICE/DataChannel behavior;
+  - static Auth initialization audit confirming no project `getAuth()` or late `setPersistence()` path.
+- `node mode/test.js`
+  - 36-slot inventory and stack behavior;
+  - 20 HP damage/death/respawn state;
+  - bed destruction and permanent elimination;
+  - win condition with one- and multi-player teams;
+  - generic multi-output forge timing;
+  - marker-driven team/diamond/emerald generator construction.
 
-Intentionally deferred after inspection:
+All project JavaScript also passes `node --check`, `rules.json` parses as valid JSON, and the Firebase configuration is present in `data/firebase.js`.
 
-- Greedy meshing, a texture atlas, occlusion systems, workers, and other large renderer optimizations are not justified without real map/Chromebook profiling. The current renderer is still one chunk group with at most one mesh/draw call per material present in that chunk.
-- Empty chunks are retained after their last voxel is removed. This can waste memory in an extremely long editor session that touches and erases many distant chunks, but removing them cleanly is not currently worth complicating the chunk/scene lifecycle. Revisit only if editor profiling demonstrates it matters.
-- Shared block materials/textures and global input/resize listeners do not yet have a full runtime teardown path. Current pages create one runtime for their lifetime, so this is not a current-session leak; a proper teardown must be added before repeated Match → Lobby → Match runtime creation is introduced.
-- `cast()` still creates short-lived Three.js/vector/result objects when it is called. It is now interaction-driven in the current foundation. If continuous target highlighting/breaking later requires per-frame casting, reuse scratch vectors/results then rather than prematurely complicating it now.
-- Real draw-call, GPU, and memory profiling on modest Chromebooks remains a Milestone 6 requirement and cannot be replaced by Node-only regression tests.
+Browser/live verification still required for this Milestone 2 build:
 
-## Firebase/lobby/network tests
+- actual exported-map rendering in match mode on both browsers;
+- correct team spawn positions from map markers;
+- remote player visibility/movement foundation;
+- bed targeting/destruction synchronization;
+- fall/void death, waiting countdown, respawn, and eliminated noclip spectator behavior;
+- host-generated resource spawning/pickup synchronization and hologram countdowns;
+- winner foundation in a real two-browser match.
 
-`node net/test.js` currently passes tests covering:
+Automated tests do not claim to prove browser WebGL, pointer-lock, Firebase runtime, or real WebRTC timing behavior.
 
-- missing/invalid landing fields and invite-code normalization;
-- atomic room-claim logic and duplicate invite-code rejection;
-- room-not-found and 10-player capacity behavior;
-- same-UID refresh without consuming another player slot;
-- mocked Firebase Join control flow where an active room listener reports an existing room but transaction attempt 1 receives `null`; the flow rereads, retries, and succeeds without returning `missing`;
-- mocked true-missing preflight and room-disappears-after-preflight paths;
-- mocked `full` and `started` races remaining authoritative inside the transaction;
-- mocked bounded retry exhaustion after three unexpected `null` transaction callbacks, returning `retry` rather than falsely returning `missing`;
-- mocked verification that the temporary listener stays active through transaction attempts and is unsubscribed on every success/failure path;
-- required team-cycle order and 5-player team cap;
-- even and odd Randomize results;
-- Start validation for assignment/team population;
-- deterministic lobby host promotion after host loss;
-- host-star WebRTC topology creation;
-- one offer per non-host peer;
-- early ICE queuing until a remote description exists;
-- client answer signalling;
-- DataChannel connection counting and host broadcast;
-- departed-peer cleanup and signalling teardown.
+## Performance / engineering notes
 
-Additional build checks verify every local placeholder skin is exactly 64×64, `rules.json` is valid JSON, all JavaScript passes `node --check`, and the required landing/lobby DOM IDs exist. The RTDB Rules API audit was repeated after Firebase rejected the unsupported `numChildren()` call: the corrected file now uses only documented authentication variables, wildcard strings/`matches()`, `exists()`, `hasChildren()`, `child()`, `isString()`, `val()`, and string `length`. The Join tests above are deliberately mocked control-flow tests; they do not claim to reproduce or prove Firebase SDK cache/runtime behavior. Real fresh-browser Join remains a required live verification using the owner's Firebase project.
-
-## Milestone 1 verification remaining
-
-- Fill `data/firebase.js` with the project's real Firebase Web configuration.
-- Enable Anonymous Authentication and Realtime Database in the Firebase Console, then publish `rules.json` as described in `firebase.md`.
-- Perform live two-browser/device validation against the owner's Firebase project for create/join/presence/host promotion and the initial WebRTC handshake.
-- Do not begin Milestone 2 until that live integration test is accepted.
-
-## Known problems / intentional limits
-
-- `data/firebase.js` intentionally ships with blank configuration values because the real Firebase project belongs to the project owner. Until those values are filled, Create/Join show a small inline configuration error.
-- Milestone 1 `rules.json` validates authenticated room shape, invite format, player shape, and team values using supported RTDB Rules APIs. RTDB Rules do not provide a child-count function, so the 10-player cap remains enforced by the existing atomic join transaction rather than by `rules.json`. Full hostile-client Rules/security hardening remains explicitly scheduled for Milestone 5.
-- Presence reconnect during an already-started match and host-disconnect match recovery remain Milestone 5 behavior; this milestone only establishes lobby presence and the initial signalling topology.
-- The post-Start screen is intentionally a connection-status placeholder. Milestone 2 gameplay systems are not implemented or faked.
-- Editor marker visuals are temporary wire boxes, deliberately separate from map block data.
-- Editor block breaking is immediate. Timed break hardness and crack overlays belong to the later combat refinement milestone, while the provenance/protection foundation is already in place.
-- Movement values are centralized and can still be tuned during later polish, but the controller architecture, held/buffered jumping, raised-block support, and requested movement/flight behaviors are now implemented and covered by automated tests.
-- Placeholder textures are intentionally simple and legally original.
+- Existing chunk architecture and dirty-remesh behavior remain unchanged.
+- Fixed-step 60 Hz player physics and render interpolation remain unchanged.
+- Resource drops are instanced by resource type and globally capped rather than creating an uncontrolled mesh per item.
+- Generator hologram DOM/canvas work is throttled to visible second changes; countdown values are calculated locally from synchronized generator state/events.
+- Realtime gameplay positions use DataChannels at 10 Hz in this foundation, not Firebase and not animation-frame frequency.
+- No dynamic shadows, general physics engine, React/framework layer, or renderer rewrite was introduced.
+- Full remote interpolation/network authority tuning remains Milestone 5; real Chromebook profiling remains Milestone 6.
+- Runtime teardown is still intentionally minimal. Match stop now halts its loop, but full removal of page-lifetime input/resize listeners is deferred until the specified Match → Lobby → Match lifecycle is implemented in Milestone 5.
 
 ## Important implementation decisions
 
-- Chunk size is 16 blocks per axis.
-- Each chunk stores block IDs and provenance in typed arrays.
-- World geometry is rebuilt only for dirty chunks through a dirty set; the render loop does not scan all loaded chunks for dirtiness.
-- Identical voxel writes and provenance-only changes do not trigger mesh rebuilds; boundary neighbors are dirtied only when occupancy changes.
-- Each chunk is represented by a small set of meshes grouped by texture/material, not one mesh per block.
-- Texture files are individual 32×32 PNGs so art can be replaced without an atlas build pipeline.
-- Map export writes only block geometry and marker metadata; gameplay logic reads marker positions rather than hardcoding island geometry.
-- Exported editor blocks load into game mode as original/protected map blocks.
-- The editor and game modes import the same core modules; voxel, collision, and normal player movement are not duplicated.
-- Editor Creative Mode is a mode of the shared collision-based `Player` controller.
-- Eliminated spectator noclip remains conceptually separate and must not replace or bypass editor/player collision physics.
-- Camera-relative horizontal direction is centralized in `core/motion.js`.
-- Fixed-step physics remains at 60 Hz while mouse look and camera presentation update on render frames.
-- Balance/gameplay constants live in centralized data modules as systems are introduced; movement tuning lives in `data/tune.js`.
-- Firebase initialization/auth/room presence, lobby DOM, skin rendering, WebRTC peer state, and RTDB signalling transport are separate modules rather than one room/game file.
-- Room/team/start decisions are implemented as pure functions in `data/room.js`; Firebase transactions in `net/room.js` reuse them so logic can be regression-tested without a live project.
-- Existing-room Join uses `net/admit.js` as the single Firebase-independent admission workflow. `net/room.js` supplies an exact-room `onValue` preflight listener, authoritative `get()` rereads, and RTDB transaction transport; `net/admit.js` reuses the pure `data/room.js` join decision for every transaction attempt. The listener remains active until admission finishes, unexpected `null` callbacks are reread/retried up to three times, and room validation is not duplicated across preflight, transaction, or presence reconnect paths.
-- Temporary `[Join CODE]` console diagnostics are enabled for live integration testing and report preflight existence, attempt number, callback-null state, committed state, reread existence, and Firebase error code only. Remove them after the real two-browser Join path is accepted.
-- Invite codes normalize to uppercase and accept 2–20 letters, numbers, or hyphens.
-- Realtime room creation/join capacity uses RTDB transactions because concurrent clients must not claim the same code or exceed the 10-player cap.
-- Lobby host promotion is intentionally limited to lobby state in Milestone 1; active-match host disconnect behavior remains the specified Milestone 5 flow.
-- WebRTC uses a host-centered star topology. Clients send later gameplay inputs/actions to the host; authoritative snapshots/events can return over the same DataChannels without pushing gameplay-rate state through RTDB.
-
-## Firebase Auth session fix
-
-Live Milestone 1 testing exposed a root-cause Auth identity collision between browser tabs. The previous initialization path called `getAuth(app)`, which allowed Firebase Auth to initialize with its default LOCAL browser persistence before `net/auth.js` later changed persistence. A second tab could therefore restore the first tab's anonymous Firebase user and reuse the same UID, causing the second player record to overwrite the first because room players are intentionally keyed by Firebase UID.
-
-Changes made:
-
-- `net/firebase.js` no longer imports or calls `getAuth()`.
-- Auth is now initialized exactly once with `initializeAuth(app, { persistence: browserSessionPersistence, popupRedirectResolver: undefined })` immediately after the Firebase app is initialized.
-- Session persistence is therefore selected before Auth has any opportunity to restore a default LOCAL user.
-- `net/auth.js` no longer imports or calls `setPersistence()`.
-- `signin()` waits for Auth readiness, reuses the current anonymous user for that tab/session when present, and calls `signInAnonymously()` only when the tab has no current user.
-- A temporary development diagnostic logs only the first eight characters of the Firebase UID (`[Auth] uid=xxxxxxxx…`) so the project owner can verify that two live tabs receive different identities without exposing tokens, credentials, or Firebase configuration.
-- Room schema, room transactions, presence, lobby ownership, and WebRTC architecture were not changed.
-
-Audit/verification:
-
-- Project source was searched after the change: there are no remaining calls/imports of `getAuth()` or `setPersistence()`.
-- `initializeAuth()` exists only in `net/firebase.js`, so no earlier accidental Auth initialization path remains in project-authored code.
-- Existing `core/test.js` and `net/test.js` still pass and all JavaScript passes `node --check`.
-- These local/static tests verify code structure and existing room logic only. They do not prove cross-tab Firebase runtime behavior. The required live verification is: Tab A creates `HELLO` as `itsmike613`; Tab B joins as `testbob`; both tabs show two cards; `itsmike613` remains host; and the shortened Firebase UIDs differ.
-- Milestone 2 remains blocked until that live two-tab verification succeeds.
+- Map geometry is never hardcoded into the BedWars rules. Gameplay consumes exported block data plus editor marker metadata.
+- Exported blocks load as protected original map geometry (kind 1); gameplay placements use kind 2.
+- `Player` remains the collision-based living/editor controller. `Fly` remains the noclip spectator controller.
+- `State` in `mode/state.js` is the small pure BedWars life/bed/win model; rendering and Firebase do not own these rules.
+- `Inventory` in `core/inventory.js` is a reusable 36-slot storage foundation independent of shop UI.
+- `Generator` in `mode/generator.js` is generic; forges are configured as one location with two outputs rather than separate Iron and Gold engines.
+- The WebRTC host owns current Milestone 2 generator/drop, bed, death/respawn, and block-event decisions. This is deliberately small and builds on Milestone 1 rather than introducing a second networking system.
+- RTDB remains room/lobby/presence/signalling infrastructure and is not used for rendering-rate gameplay state.
+- Balance constants introduced by Milestone 2 live in `data/balance.js` for later tuning.

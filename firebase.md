@@ -36,29 +36,13 @@ Fresh-client Join detail: RTDB transaction callbacks can initially receive `null
 
 If a transaction attempt unexpectedly receives `null`, that attempt aborts without writing. While the temporary listener remains active, Join re-reads the room with `get()`. A truly absent room returns `missing`; an existing room is retried in a bounded three-attempt loop. The `full` and `started` decisions are still made inside the transaction against its current room value. The temporary room listener is always unsubscribed after Join succeeds or fails. Presence reconnects reuse this same Join path rather than maintaining duplicate room logic.
 
-For the current live-integration pass, Join also writes temporary diagnostics to the browser console. They contain only the invite code and control-flow state: preflight existence, transaction attempt number, whether that transaction callback received `null`, committed state, reread existence, and Firebase error code. They do not print Firebase configuration values, auth tokens, or other secrets. These diagnostics are intended to make the two-browser test easy to inspect and can be removed after the live Join path is accepted.
+Join currently also writes temporary diagnostics to the browser console. They contain only the invite code and control-flow state: preflight existence, transaction attempt number, whether that transaction callback received `null`, committed state, reread existence, and Firebase error code. They do not print Firebase configuration values, auth tokens, or other secrets. These diagnostics are intended to make the two-browser test easy to inspect and can be removed after the live Join path is accepted.
 
-## 4. Fill `data/firebase.js`
+## 4. Firebase client configuration
 
-Copy the values from **Project settings → Your apps → SDK setup and configuration → Config** into `data/firebase.js`.
+The accepted project Firebase Web configuration is now permanently stored in `data/firebase.js` for this project and should remain in future project ZIPs unless the project owner explicitly requests a change. No manual config paste is required for normal testing.
 
-The file already contains the required shape:
-
-```js
-const config = {
-  apiKey: '',
-  authDomain: '',
-  databaseURL: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: ''
-};
-```
-
-Use the values Firebase gives you exactly. The Realtime Database `databaseURL` is required and may include your selected database region.
-
-The Firebase web configuration is public client configuration. Do not treat these values as passwords. Access control comes from Authentication and Realtime Database Rules.
+The Firebase web configuration is public client configuration. It is not treated as a password; access control comes from Authentication and Realtime Database Rules.
 
 ## 5. Run locally
 
@@ -94,4 +78,4 @@ The project uses relative local paths and browser ES modules. When the repositor
 
 ## Current networking boundary
 
-The initial `Peer` architecture is host-centered. The host creates one ordered WebRTC DataChannel to each other player. Realtime Database carries only offer/answer/ICE signalling messages under a separate `signal/` path, so room listeners are not redrawn by ICE traffic. No animation frames or rendering-rate coordinates are sent through Firebase. Later gameplay networking can send input/action messages toward the host and authoritative snapshots/events back through these channels.
+The `Peer` architecture is host-centered. The host creates one ordered WebRTC DataChannel to each other player. Realtime Database carries only offer/answer/ICE signalling messages under a separate `signal/` path, so room listeners are not redrawn by ICE traffic. No animation frames or rendering-rate coordinates are sent through Firebase. Milestone 2 now uses these existing DataChannels for a modest player-position foundation plus host-owned bed/death/generator/drop/block events; the full authority/interpolation/reconnect pass remains Milestone 5.

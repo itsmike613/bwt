@@ -18,7 +18,7 @@ Then open:
 
 ## Firebase
 
-Before Create/Join can work, follow `firebase.md` and fill the real Firebase Web configuration into `data/firebase.js`.
+The accepted Firebase Web configuration is already stored in `data/firebase.js`. Follow `firebase.md` for Console services/rules and authorized-domain setup.
 
 Firebase is used for:
 
@@ -38,13 +38,21 @@ The public client stays static and uses relative project paths so it can be host
 
 The editor starts in normal collision-based movement. Hold Space to keep jumping whenever you land. Double-tap Space to toggle creative flight. While flying, Space rises and Shift descends; flight still collides with blocks.
 
+
+## Milestone 2 live test
+
+`index.html` now loads `data/map.json` as the actual match map after Start. The bundled map is deliberately a tiny development platform with editor-format marker metadata; replace it later with an export from `editor.html` without changing the match engine.
+
+Useful checks in two browsers: verify each team spawn, walk through forge drops to collect Iron/Gold, press E to inspect the 36-slot inventory, fall into the void to verify 3 → 2 → 1 respawn while the bed exists, break the enemy bed from close range, then make that player die again to verify permanent noclip spectator mode and the win foundation.
+
 ## Tests
 
-Run both automated suites:
+Run the automated suites:
 
 ```sh
 node core/test.js
 node net/test.js
+node mode/test.js
 ```
 
-`core/test.js` covers the shared voxel/movement foundation. `net/test.js` covers room/lobby validation, capacity, team, Randomize, Start, host election, and the host-star WebRTC signalling/topology state machine with test doubles.
+`core/test.js` covers the shared voxel/movement foundation. `net/test.js` covers room/lobby validation and the initial host-star WebRTC layer. `mode/test.js` covers Milestone 2 inventory, health/death/bed/win state, and generic generator behavior.

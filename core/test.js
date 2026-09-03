@@ -119,7 +119,11 @@ assert(build.break({ x: 16, y: -1, z: -16 }, false) === true, 'placed break');
 assert(world.get(16, -1, -16) === 0, 'placed block removed');
 world.set(16, -1, -16, 2, 2);
 
-
+const body = { pos: { x: 0.5, y: 1.001, z: 0.5 }, width: 0.6, height: 1.8 };
+assert(build.spot({ x: 0, y: 0, z: 0, face: { x: 0, y: 1, z: 0 } }, body) === null, 'placement target inside player body is rejected without mutating world');
+const side = build.spot({ x: 0, y: 0, z: 0, face: { x: 1, y: 0, z: 0 } }, body);
+assert(side && side.x === 1 && side.y === 0 && side.z === 0, 'placement target outside player body is returned without a temporary voxel write');
+assert(world.get(1, 0, 0) === 0, 'placement probing does not dirty the world by inserting a temporary block');
 
 const empty = new World();
 empty.del(99, 99, 99);

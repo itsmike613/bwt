@@ -6,6 +6,7 @@ import { read } from '../core/map.js';
 import { move as tune } from '../data/tune.js';
 
 async function play() {
+  document.body.classList.add('preview');
   const landing = document.querySelector('#landing');
   const stage = document.querySelector('#stage');
   const hud = document.querySelector('#hud');

@@ -272,3 +272,149 @@ button:disabled {
 }
 
 [hidden] { display: none !important; }
+
+#beds,
+#info {
+  position: absolute;
+  top: 14px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 55%);
+  font-size: 12px;
+}
+
+#beds { left: 14px; }
+#info { right: 14px; }
+
+#bottom {
+  position: absolute;
+  left: 50%;
+  bottom: 42px;
+  width: min(520px, calc(100% - 24px));
+  transform: translateX(-50%);
+}
+
+#health {
+  margin-bottom: 3px;
+  text-align: center;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000;
+}
+
+#track {
+  height: 9px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 45%);
+  background: rgb(0 0 0 / 65%);
+}
+
+#bar {
+  width: 100%;
+  height: 100%;
+  background: #d84f4f;
+}
+
+#hotbar {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.slot {
+  position: relative;
+  min-width: 0;
+  height: 52px;
+  padding: 4px;
+  border: 2px solid rgb(255 255 255 / 38%);
+  border-radius: 3px;
+  background: rgb(20 20 20 / 72%);
+  color: #fff;
+  overflow: hidden;
+}
+
+.slot.selected { border-color: #fff; }
+.slot.picked { outline: 2px solid #fff; }
+
+.thing {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 10px;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.count {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  font-size: 12px;
+  font-weight: 800;
+  text-shadow: 0 1px 2px #000;
+}
+
+#inventory {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 46%);
+  pointer-events: auto;
+}
+
+#bag {
+  width: min(620px, calc(100% - 24px));
+  padding: 16px;
+  border: 1px solid #555;
+  border-radius: 8px;
+  background: #262626;
+}
+
+#bag h2 { margin: 0 0 12px; }
+#bag p { margin: 10px 0 0; color: #bdbdbd; font-size: 12px; }
+
+#grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 4px;
+}
+
+#grid .slot { cursor: pointer; }
+
+#countdown,
+#notice {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  text-shadow: 0 2px 5px #000;
+}
+
+#countdown {
+  font-size: clamp(70px, 14vw, 150px);
+  font-weight: 900;
+}
+
+#notice {
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 58%);
+  font-size: clamp(22px, 4vw, 38px);
+  font-weight: 800;
+}
+
+@media (max-width: 620px) {
+  .slot { height: 44px; }
+  #bottom { bottom: 50px; }
+}
+
+.preview #bottom,
+.preview #beds,
+.preview #info,
+.preview #notice,
+.preview #countdown,
+.preview #inventory { display: none !important; }

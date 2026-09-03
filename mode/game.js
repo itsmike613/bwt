@@ -104,16 +104,22 @@ function update(room) {
   }
 
   lobby.hide();
-  match.open(state.code);
   if (!state.peer) {
     const signal = new Signal(state.db, state.code, state.uid);
     state.peer = new Peer(signal, state.uid, room.host, {
-      change: (open, total) => match.network(open, total, state.uid === room.host)
+      change: (open, total) => match.network(open, total, state.uid === room.host),
+      data: (from, data) => match.data(from, data)
     });
     state.peer.open(players(room));
   } else {
     state.peer.sync(players(room));
   }
+  match.open(state.code, room, state.uid, state.peer).catch(error => {
+    console.error('[Match] load failed', error);
+    match.close();
+    landing.show();
+    landing.error({ action: error instanceof Error ? error.message : 'Could not load the match.' });
+  });
 }
 
 async function assign(uid) {

@@ -105,6 +105,15 @@ class Peer {
     for (const item of list) await link.pc.addIceCandidate(item);
   }
 
+  send(uid, value) {
+    const link = this.links.get(uid);
+    if (link?.channel?.readyState === 'open') {
+      link.channel.send(JSON.stringify(value));
+      return true;
+    }
+    return false;
+  }
+
   data(value) {
     const text = JSON.stringify(value);
     if (this.uid === this.host) {

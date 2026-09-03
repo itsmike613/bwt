@@ -37,6 +37,10 @@ class Runtime {
     this.sync();
     this.loop.start();
   }
+
+  stop() {
+    this.loop.stop();
+  }
 }
 
 export { Runtime };
