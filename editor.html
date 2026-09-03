@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BedWars Editor</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="hud">
+    <div id="cross"></div>
+    <div id="hint">Click world to capture · WASD fly · Space up · Shift down · Left break · Right place</div>
+  </div>
+  <aside id="panel">
+    <h1>Map Editor</h1>
+    <h2>Blocks</h2>
+    <div id="palette"></div>
+    <h2>Markers</h2>
+    <div id="markers"></div>
+    <div id="files">
+      <button id="save" type="button">Export</button>
+      <label id="pick">Import<input id="load" type="file" accept="application/json,.json"></label>
+      <button id="clear" type="button">Clear marker</button>
+    </div>
+    <p id="mode">Selected: Stone</p>
+  </aside>
+  <script type="module" src="./mode/editor.js"></script>
+</body>
+</html>

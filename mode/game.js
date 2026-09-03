@@ -1,0 +1,80 @@
+import { skins } from '../data/skins.js';
+import { Runtime } from '../core/runtime.js';
+import { Player } from '../core/player.js';
+import { Build } from '../core/build.js';
+import { cast } from '../core/ray.js';
+import { read } from '../core/map.js';
+import { move as tune } from '../data/tune.js';
+
+const skin = document.querySelector('#skin');
+const user = document.querySelector('#username');
+const invite = document.querySelector('#invite');
+const error = document.querySelector('#error');
+const create = document.querySelector('#create');
+const join = document.querySelector('#join');
+const landing = document.querySelector('#landing');
+const stage = document.querySelector('#stage');
+const hud = document.querySelector('#hud');
+
+for (const item of skins) {
+  const option = document.createElement('option');
+  option.value = item.id;
+  option.textContent = item.name;
+  skin.append(option);
+}
+
+function check() {
+  error.textContent = '';
+  if (!user.value.trim()) {
+    error.textContent = 'Enter a username.';
+    return false;
+  }
+  if (!invite.value.trim()) {
+    error.textContent = 'Enter an invite code.';
+    return false;
+  }
+  return true;
+}
+
+function setup() {
+  if (!check()) return;
+  error.textContent = 'Firebase rooms are the next Milestone 1 integration step; this foundation does not fake room creation.';
+}
+
+async function play(data) {
+  landing.hidden = true;
+  stage.hidden = false;
+  hud.hidden = false;
+  const runtime = new Runtime(stage);
+  read(runtime.world, data);
+  const player = new Player(runtime.world, runtime.input, runtime.view.camera);
+  const build = new Build(runtime.world);
+  player.spawn(0.5, 1.01, 0.5);
+  let selected = 2;
+
+  runtime.tick = dt => {
+    if (runtime.input.press('Digit1')) selected = 2;
+    if (runtime.input.press('Digit2')) selected = 3;
+    if (runtime.input.press('Digit3')) selected = 4;
+    if (runtime.input.press('Digit4')) selected = 5;
+    player.tick(dt);
+    if (!runtime.input.locked) return;
+    const hit = cast(runtime.world, runtime.view.camera, tune.reach);
+    if (runtime.input.click(0)) build.break(hit, false);
+    if (runtime.input.click(2)) build.place(hit, selected, player, 2);
+  };
+  runtime.start();
+}
+
+create.addEventListener('click', setup);
+join.addEventListener('click', setup);
+
+const query = new URLSearchParams(location.search);
+if (query.get('preview') === '1') {
+  fetch('./data/map.json')
+    .then(response => response.json())
+    .then(play)
+    .catch(() => { error.textContent = 'Could not load the local preview map.'; });
+}
+
+export { play };

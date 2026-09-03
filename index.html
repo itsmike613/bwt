@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BedWars</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <main id="landing">
+    <section id="card">
+      <h1>BedWars</h1>
+      <div id="form">
+        <label>Username<input id="username" maxlength="16" autocomplete="off"></label>
+        <label>Skin<select id="skin"></select></label>
+        <label>Invite code<input id="invite" maxlength="20" autocomplete="off"></label>
+        <div id="actions">
+          <button id="create" type="button">Create</button>
+          <button id="join" type="button">Join</button>
+        </div>
+        <p id="error" role="alert"></p>
+      </div>
+    </section>
+  </main>
+  <div id="stage" hidden></div>
+  <div id="hud" hidden>
+    <div id="cross"></div>
+    <div id="hint">Click to capture mouse · WASD move · Space jump · Ctrl sprint · Shift crouch</div>
+  </div>
+  <script type="module" src="./mode/game.js"></script>
+</body>
+</html>
