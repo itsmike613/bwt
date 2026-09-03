@@ -32,7 +32,11 @@ The client deliberately uses session persistence so separate browser tabs/profil
 
 The Milestone 1 rules require Firebase Authentication and validate the room/player shape and team values, but they intentionally do not yet attempt the final hostile-client security model. Realtime Database Rules do not expose a supported child-count function, so the 10-player room limit is enforced by the existing atomic join transaction in `net/room.js` using the pure room logic in `data/room.js`. Concurrent joins are retried by Firebase transactions against the latest room state, so the normal application flow cannot commit an eleventh player. Independent server-side enforcement of the cap against a deliberately modified client is deferred to the Milestone 5 security-hardening pass rather than redesigning the room model here.
 
-Fresh-client join detail: RTDB transaction callbacks can initially receive `null` even when the remote room exists if that location is not yet in the client's local cache. The Join path therefore performs one `get()` on the room reference before starting the atomic transaction. That read establishes existence and warms the same SDK/reference cache; the transaction remains authoritative for room state and the 10-player limit. If the room fills, starts, or disappears after the `get()`, the transaction evaluates the newer server state and rejects the join with the appropriate result. Presence reconnects reuse this same Join path rather than maintaining a duplicate room-update implementation.
+Fresh-client Join detail: RTDB transaction callbacks can initially receive `null` even when the remote room exists. The Join path must not interpret that first transaction value as proof that the room is missing. `net/room.js` now opens an `onValue` listener on the exact room reference and waits for its first synchronized value while leaving that listener active through the Join transaction. If that listener reports no room, Join returns `missing`. If the room exists, the authoritative transaction still performs the room-state and 10-player checks.
+
+If a transaction attempt unexpectedly receives `null`, that attempt aborts without writing. While the temporary listener remains active, Join re-reads the room with `get()`. A truly absent room returns `missing`; an existing room is retried in a bounded three-attempt loop. The `full` and `started` decisions are still made inside the transaction against its current room value. The temporary room listener is always unsubscribed after Join succeeds or fails. Presence reconnects reuse this same Join path rather than maintaining duplicate room logic.
+
+For the current live-integration pass, Join also writes temporary diagnostics to the browser console. They contain only the invite code and control-flow state: preflight existence, transaction attempt number, whether that transaction callback received `null`, committed state, reread existence, and Firebase error code. They do not print Firebase configuration values, auth tokens, or other secrets. These diagnostics are intended to make the two-browser test easy to inspect and can be removed after the live Join path is accepted.
 
 ## 4. Fill `data/firebase.js`
 
@@ -71,7 +75,7 @@ For a two-player test, use two separate browser profiles/private windows if your
 Suggested test:
 
 1. Browser A: enter a name, skin, code such as `TEST1`, then Create.
-2. Browser B: use a different name/skin, enter `TEST1`, then Join.
+2. Browser B: use a different name/skin, enter `TEST1`, open Developer Tools → Console, then press Join. Browser B should enter the existing lobby. The console should show `[Join TEST1]` diagnostics for preflight existence and the transaction result. If a transaction callback receives `null`, the log should show the reread and bounded retry instead of immediately reporting Room not found.
 3. Confirm both player cards appear in both lobbies.
 4. On the host browser, click each team button to cycle Unassigned → Red → Blue → Unassigned.
 5. Test Randomize.

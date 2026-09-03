@@ -58,7 +58,7 @@ Milestone 1 implementation is now complete in code. Live Firebase Console config
 - Firebase modular browser SDK pinned to 12.18.0 for Authentication and Realtime Database without adding a bundler/framework.
 - Anonymous Authentication through `net/auth.js`, using session persistence so separate testing windows can hold separate anonymous users while a tab refresh can retain its session.
 - Atomic invite-code room claiming with an RTDB transaction at the room path; the creator becomes the initial host.
-- Atomic room joining with transaction-based 10-player capacity checks and explicit not-found/full/already-started results. Fresh clients now perform a one-time `get()` on the room reference before the join transaction so an uncached initial transaction value cannot be mistaken for a missing room.
+- Atomic room joining with transaction-based 10-player capacity checks and explicit not-found/full/already-started results. Fresh-client Join now holds an exact-room `onValue` listener open through the transaction, waits for its first synchronized room value, and treats only an absent listener value or absent authoritative reread as `missing`. Unexpected `null` transaction callbacks trigger a `get()` reread and a bounded three-attempt retry rather than being mislabeled Room not found.
 - Landing validation now uses small field/action inline red errors only; normal validation does not use an error page or modal.
 - Firebase presence through `.info/connected` and `onDisconnect`, with disconnect removal queued before the player is refreshed online.
 - Lobby room listener with simple synchronized username/player cards.
@@ -164,8 +164,11 @@ Intentionally deferred after inspection:
 - atomic room-claim logic and duplicate invite-code rejection;
 - room-not-found and 10-player capacity behavior;
 - same-UID refresh without consuming another player slot;
-- fresh-client existing-room Join with an initially empty local room cache, verifying `get()` occurs before the transaction;
-- races after the warm read: a concurrently filled room still returns `full`, and a concurrently started room still returns `started`;
+- mocked Firebase Join control flow where an active room listener reports an existing room but transaction attempt 1 receives `null`; the flow rereads, retries, and succeeds without returning `missing`;
+- mocked true-missing preflight and room-disappears-after-preflight paths;
+- mocked `full` and `started` races remaining authoritative inside the transaction;
+- mocked bounded retry exhaustion after three unexpected `null` transaction callbacks, returning `retry` rather than falsely returning `missing`;
+- mocked verification that the temporary listener stays active through transaction attempts and is unsubscribed on every success/failure path;
 - required team-cycle order and 5-player team cap;
 - even and odd Randomize results;
 - Start validation for assignment/team population;
@@ -177,7 +180,7 @@ Intentionally deferred after inspection:
 - DataChannel connection counting and host broadcast;
 - departed-peer cleanup and signalling teardown.
 
-Additional build checks verify every local placeholder skin is exactly 64×64, `rules.json` is valid JSON, all JavaScript passes `node --check`, and the required landing/lobby DOM IDs exist. The RTDB Rules API audit was repeated after Firebase rejected the unsupported `numChildren()` call: the corrected file now uses only documented authentication variables, wildcard strings/`matches()`, `exists()`, `hasChildren()`, `child()`, `isString()`, `val()`, and string `length`. Live publish/runtime semantics and real browser DataChannel negotiation still require the project owner's Firebase project and browsers.
+Additional build checks verify every local placeholder skin is exactly 64×64, `rules.json` is valid JSON, all JavaScript passes `node --check`, and the required landing/lobby DOM IDs exist. The RTDB Rules API audit was repeated after Firebase rejected the unsupported `numChildren()` call: the corrected file now uses only documented authentication variables, wildcard strings/`matches()`, `exists()`, `hasChildren()`, `child()`, `isString()`, `val()`, and string `length`. The Join tests above are deliberately mocked control-flow tests; they do not claim to reproduce or prove Firebase SDK cache/runtime behavior. Real fresh-browser Join remains a required live verification using the owner's Firebase project.
 
 ## Milestone 1 verification remaining
 
@@ -215,7 +218,8 @@ Additional build checks verify every local placeholder skin is exactly 64×64, `
 - Balance/gameplay constants live in centralized data modules as systems are introduced; movement tuning lives in `data/tune.js`.
 - Firebase initialization/auth/room presence, lobby DOM, skin rendering, WebRTC peer state, and RTDB signalling transport are separate modules rather than one room/game file.
 - Room/team/start decisions are implemented as pure functions in `data/room.js`; Firebase transactions in `net/room.js` reuse them so logic can be regression-tested without a live project.
-- Existing-room Join uses `net/admit.js` as the single Firebase-independent transaction workflow: read/warm once, then reuse the pure `data/room.js` join decision inside the authoritative RTDB transaction. This avoids duplicating room validation between the preflight read, transaction, and presence reconnect path.
+- Existing-room Join uses `net/admit.js` as the single Firebase-independent admission workflow. `net/room.js` supplies an exact-room `onValue` preflight listener, authoritative `get()` rereads, and RTDB transaction transport; `net/admit.js` reuses the pure `data/room.js` join decision for every transaction attempt. The listener remains active until admission finishes, unexpected `null` callbacks are reread/retried up to three times, and room validation is not duplicated across preflight, transaction, or presence reconnect paths.
+- Temporary `[Join CODE]` console diagnostics are enabled for live integration testing and report preflight existence, attempt number, callback-null state, committed state, reread existence, and Firebase error code only. Remove them after the real two-browser Join path is accepted.
 - Invite codes normalize to uppercase and accept 2–20 letters, numbers, or hyphens.
 - Realtime room creation/join capacity uses RTDB transactions because concurrent clients must not claim the same code or exceed the 10-player cap.
 - Lobby host promotion is intentionally limited to lobby state in Milestone 1; active-match host disconnect behavior remains the specified Milestone 5 flow.

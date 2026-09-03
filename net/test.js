@@ -81,67 +81,136 @@ console.log('room and lobby logic tests passed');
 
 const clone = value => structuredClone(value);
 
+function feed(value, state) {
+  return {
+    first: Promise.resolve(clone(value)),
+    close() {
+      state.closed = true;
+    }
+  };
+}
+
+console.log('running mocked Firebase Join control-flow tests');
+
 let remote = claim(null, member('host', 'Host', 'plain', 1), 1).room;
-let cache = null;
-const order = [];
+let state = { closed: false };
+let calls = 0;
+let reads = 0;
+const traces = [];
 const fresh = await admit(
+  () => feed(remote, state),
   async () => {
-    order.push('get');
-    cache = clone(remote);
+    reads++;
     return clone(remote);
   },
   async update => {
-    order.push('transaction');
-    assert(cache !== null, 'fresh-client get warms room state before the join transaction');
-    const next = update(clone(cache));
-    if (next === undefined) return { committed: false, room: clone(cache) };
+    calls++;
+    assert(!state.closed, 'temporary room listener stays active through the transaction');
+    if (calls === 1) {
+      const next = update(null);
+      assert(next === undefined, 'unexpected null transaction input aborts that attempt without inventing a room');
+      return { committed: false, room: null };
+    }
+    const next = update(clone(remote));
+    assert(next !== undefined, 'retry receives the existing room and can produce the joined room');
     remote = clone(next);
-    cache = clone(next);
-    return { committed: true, room: clone(next) };
+    return { committed: true, room: clone(remote) };
   },
-  member('fresh', 'Fresh', 'blue', 2)
+  member('fresh', 'Fresh', 'blue', 2),
+  (kind, data) => traces.push({ kind, ...data })
 );
-assert(fresh.ok && fresh.room.players.fresh, 'fresh client with no initial room cache joins an existing room');
-assert(order.join(',') === 'get,transaction', 'fresh join reads the room before starting its transaction');
+assert(fresh.ok && fresh.room.players.fresh, 'mocked fresh-client flow retries after an unexpected null transaction callback');
+assert(calls === 2 && reads === 1, 'mocked fresh-client flow rereads once and retries the transaction once');
+assert(state.closed, 'temporary room listener unsubscribes after successful Join');
+assert(traces.some(item => item.kind === 'result' && item.attempt === 1 && item.empty === true && item.committed === false), 'mocked diagnostics record null callback and aborted first attempt');
+assert(traces.some(item => item.kind === 'reread' && item.exists === true), 'mocked diagnostics record authoritative reread existence');
+
+state = { closed: false };
+calls = 0;
+reads = 0;
+const missing = await admit(
+  () => feed(null, state),
+  async () => {
+    reads++;
+    return null;
+  },
+  async () => {
+    calls++;
+    return { committed: false, room: null };
+  },
+  member('none', 'None', 'plain', 2)
+);
+assert(!missing.ok && missing.code === 'missing', 'mocked preflight returns missing only when the active listener reports no room');
+assert(calls === 0 && reads === 0 && state.closed, 'mocked missing preflight skips the transaction and still unsubscribes');
+
+remote = claim(null, member('gone0', 'Gone0', 'plain', 1), 1).room;
+state = { closed: false };
+calls = 0;
+const gone = await admit(
+  () => feed(remote, state),
+  async () => null,
+  async update => {
+    calls++;
+    update(null);
+    return { committed: false, room: null };
+  },
+  member('gone1', 'Gone1', 'red', 2)
+);
+assert(!gone.ok && gone.code === 'missing', 'mocked null callback becomes missing only after the authoritative reread also reports no room');
+assert(calls === 1 && state.closed, 'mocked vanished room closes the temporary listener after reread');
 
 remote = claim(null, member('cap0', 'Cap0', 'plain', 1), 1).room;
 for (let i = 1; i < 9; i++) remote = join(remote, member(`cap${i}`, `Cap${i}`, 'plain', i + 1)).room;
-cache = null;
+state = { closed: false };
 const raced = await admit(
-  async () => {
-    cache = clone(remote);
-    return clone(remote);
-  },
+  () => feed(remote, state),
+  async () => clone(remote),
   async update => {
     remote = join(remote, member('cap9', 'Cap9', 'plain', 10)).room;
     const next = update(clone(remote));
-    return next === undefined
-      ? { committed: false, room: clone(remote) }
-      : { committed: true, room: clone(next) };
+    return { committed: next !== undefined, room: next === undefined ? clone(remote) : clone(next) };
   },
   member('late', 'Late', 'red', 11)
 );
-assert(!raced.ok && raced.code === 'full', 'atomic transaction still rejects a join when capacity fills after the warm read');
+assert(!raced.ok && raced.code === 'full', 'mocked authoritative transaction still enforces the 10-player cap after preflight');
+assert(state.closed, 'temporary listener closes after full-room rejection');
 
 remote = claim(null, member('start0', 'Start0', 'plain', 1), 1).room;
-cache = null;
+state = { closed: false };
 const started = await admit(
-  async () => {
-    cache = clone(remote);
-    return clone(remote);
-  },
+  () => feed(remote, state),
+  async () => clone(remote),
   async update => {
     remote = { ...remote, state: 'match' };
     const next = update(clone(remote));
-    return next === undefined
-      ? { committed: false, room: clone(remote) }
-      : { committed: true, room: clone(next) };
+    return { committed: next !== undefined, room: next === undefined ? clone(remote) : clone(next) };
   },
   member('late2', 'Late2', 'blue', 2)
 );
-assert(!started.ok && started.code === 'started', 'transaction still rejects a room that starts after the warm read');
+assert(!started.ok && started.code === 'started', 'mocked authoritative transaction still enforces room-started validation after preflight');
+assert(state.closed, 'temporary listener closes after started-room rejection');
 
-console.log('fresh-client join transaction tests passed');
+remote = claim(null, member('retry0', 'Retry0', 'plain', 1), 1).room;
+state = { closed: false };
+calls = 0;
+reads = 0;
+const retry = await admit(
+  () => feed(remote, state),
+  async () => {
+    reads++;
+    return clone(remote);
+  },
+  async update => {
+    calls++;
+    update(null);
+    return { committed: false, room: null };
+  },
+  member('retry1', 'Retry1', 'blue', 2)
+);
+assert(!retry.ok && retry.code === 'retry', 'mocked repeated null callbacks stop after the bounded retry limit without falsely returning missing');
+assert(calls === 3 && reads === 3 && state.closed, 'mocked retry loop is bounded to three attempts and always unsubscribes');
+
+console.log('mocked Firebase Join control-flow tests passed (these mocks verify control flow, not Firebase runtime cache behavior)');
 
 class Wire {
   constructor() {

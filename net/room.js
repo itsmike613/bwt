@@ -26,16 +26,50 @@ async function claim(db, code, profile) {
   return result.committed ? { ok: true, room: result.snapshot.val() } : { ok: false, code: 'taken' };
 }
 
+function probe(target) {
+  let stop = null;
+  const first = new Promise((resolve, reject) => {
+    let done = false;
+    stop = onValue(target, snap => {
+      if (done) return;
+      done = true;
+      resolve(snap.val());
+    }, error => {
+      if (done) return;
+      done = true;
+      reject(error);
+    });
+  });
+  return { first, close: () => stop?.() };
+}
+
+function trace(code, kind, data = {}) {
+  const tag = `[Join ${code}]`;
+  if (kind === 'preflight') {
+    console.info(`${tag} preflight existence=${data.exists}`);
+  } else if (kind === 'attempt') {
+    console.info(`${tag} transaction attempt=${data.attempt}`);
+  } else if (kind === 'result') {
+    console.info(`${tag} transaction attempt=${data.attempt} callback-null=${data.empty} committed=${data.committed}`);
+  } else if (kind === 'reread') {
+    console.info(`${tag} reread attempt=${data.attempt} existence=${data.exists}`);
+  } else if (kind === 'error') {
+    console.error(`${tag} Firebase error attempt=${data.attempt} code=${data.code ?? 'unknown'}`);
+  }
+}
+
 async function join(db, code, profile) {
   const target = ref(db, `rooms/${code}`);
   const item = member(profile.uid, profile.name, profile.skin, serverTimestamp());
   return admit(
+    () => probe(target),
     async () => (await get(target)).val(),
     async update => {
       const result = await runTransaction(target, update, { applyLocally: false });
       return { committed: result.committed, room: result.snapshot.val() };
     },
-    item
+    item,
+    (kind, data) => trace(code, kind, data)
   );
 }
 
