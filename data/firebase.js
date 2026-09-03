@@ -6,7 +6,7 @@ const config = {
   storageBucket: 'bwt1-243d7.firebasestorage.app',
   messagingSenderId: '535865314375',
   appId: '1:535865314375:web:0a0fb5c2a62be1da143562'
-}; 
+};
 
 function ready() {
   return Boolean(
