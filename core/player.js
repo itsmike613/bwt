@@ -160,6 +160,13 @@ class Player {
     move(this.world, this, dt);
   }
 
+  knock(x, y, z) {
+    this.vel.x += Number(x) || 0;
+    this.vel.y = Math.max(this.vel.y, Number(y) || 0);
+    this.vel.z += Number(z) || 0;
+    this.ground = false;
+  }
+
   tick(dt) {
     this.time += dt;
     this.prev.x = this.pos.x;

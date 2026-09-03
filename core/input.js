@@ -54,6 +54,10 @@ class Input {
     return this.clicks.has(button);
   }
 
+  button(button) {
+    return this.buttons.has(button);
+  }
+
   mouse() {
     this.move.x = this.x;
     this.move.y = this.y;

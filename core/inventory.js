@@ -15,6 +15,12 @@ class Inventory {
     return this.slots[index] ?? null;
   }
 
+  count(id) {
+    let total = 0;
+    for (const slot of this.slots) if (slot?.id === id) total += slot.count;
+    return total;
+  }
+
   add(id, count = 1) {
     const def = item(id);
     if (!def || count <= 0) return count;
@@ -65,6 +71,29 @@ class Inventory {
 
   clear() {
     this.slots.fill(null);
+  }
+
+  load(data = []) {
+    this.slots = Array.from({ length: 36 }, (_, i) => {
+      const slot = data[i];
+      const def = slot ? item(slot.id) : null;
+      if (!def) return null;
+      const count = Math.max(1, Math.min(def.stack, Math.floor(slot.count ?? 1)));
+      return { id: def.id, count };
+    });
+  }
+
+  death() {
+    const loot = {
+      diamond: this.count('diamond'),
+      emerald: this.count('emerald')
+    };
+    const keep = this.slots.filter(slot => slot && item(slot.id)?.persist).map(slot => ({ ...slot }));
+    this.clear();
+    for (const slot of keep) this.add(slot.id, slot.count);
+    this.add('swordwood', 1);
+    this.pick = 0;
+    return loot;
   }
 
   dump() {

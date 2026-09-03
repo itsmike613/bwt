@@ -37,6 +37,7 @@ function cube(w, h, d, map) {
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(index);
   geo.computeVertexNormals();
+  geo.computeBoundingSphere();
   return geo;
 }
 
@@ -87,28 +88,38 @@ function mesh(kind, scale, mat, grow = 0) {
 class Skin {
   constructor(file) {
     const tex = texture(file);
-    const mat = new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.01 });
+    // Minecraft skins are cutout textures. Alpha testing keeps opaque pixels in the
+    // normal depth pass and avoids transparent-object sorting artifacts between limbs.
+    const base = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5 });
+    const layer = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5 });
     const scale = 1.8 / 32;
     this.group = new THREE.Group();
-    this.head = mesh('head', scale, mat);
-    this.body = mesh('body', scale, mat);
-    this.arm = mesh('arm', scale, mat);
-    this.larm = mesh('larm', scale, mat);
-    this.leg = mesh('leg', scale, mat);
-    this.lleg = mesh('lleg', scale, mat);
+    this.offset = 0;
+    this.head = mesh('head', scale, base);
+    this.body = mesh('body', scale, base);
+    this.arm = mesh('arm', scale, base);
+    this.larm = mesh('larm', scale, base);
+    this.leg = mesh('leg', scale, base);
+    this.lleg = mesh('lleg', scale, base);
     const grow = scale * 0.5;
-    this.hat = mesh('hat', scale, mat, grow);
-    this.coat = mesh('coat', scale, mat, grow);
-    this.rarm = mesh('rarm', scale, mat, grow);
-    this.lcoat = mesh('lcoat', scale, mat, grow);
-    this.rleg = mesh('rleg', scale, mat, grow);
-    this.lpants = mesh('lpants', scale, mat, grow);
+    this.hat = mesh('hat', scale, layer, grow);
+    this.coat = mesh('coat', scale, layer, grow);
+    this.rarm = mesh('rarm', scale, layer, grow);
+    this.lcoat = mesh('lcoat', scale, layer, grow);
+    this.rleg = mesh('rleg', scale, layer, grow);
+    this.lpants = mesh('lpants', scale, layer, grow);
     for (const item of [this.head, this.hat]) item.position.y = 28 * scale;
     for (const item of [this.body, this.coat]) item.position.y = 18 * scale;
     for (const item of [this.arm, this.rarm]) item.position.set(-6 * scale, 18 * scale, 0);
     for (const item of [this.larm, this.lcoat]) item.position.set(6 * scale, 18 * scale, 0);
     for (const item of [this.leg, this.rleg]) item.position.set(-2 * scale, 6 * scale, 0);
     for (const item of [this.lleg, this.lpants]) item.position.set(2 * scale, 6 * scale, 0);
+    this.toolmat = new THREE.MeshLambertMaterial({ color: 0xb8b8b8 });
+    this.tool = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.7, 0.11), this.toolmat);
+    this.tool.position.set(0, -0.48, -0.12);
+    this.tool.rotation.x = -0.35;
+    this.tool.visible = false;
+    this.arm.add(this.tool);
     this.group.add(this.head, this.hat, this.body, this.coat, this.arm, this.rarm, this.larm, this.lcoat, this.leg, this.rleg, this.lleg, this.lpants);
   }
 
@@ -121,7 +132,34 @@ class Skin {
   }
 
   crouch(on) {
-    this.group.position.y = on ? -0.18 : 0;
+    this.offset = on ? -0.18 : 0;
+  }
+
+  hold(kind = '') {
+    this.tool.visible = Boolean(kind);
+    if (!kind) return;
+    const color = kind === 'sword' ? 0xd8d8d8 : kind === 'pickaxe' ? 0xa9a9a9 : kind === 'axe' ? 0x9b744c : kind === 'shears' ? 0xc7c7c7 : kind === 'block' ? 0xd85b5b : 0xb8b8b8;
+    this.toolmat.color.setHex(color);
+    if (kind === 'block') this.tool.scale.set(2.6, 0.42, 2.6);
+    else if (kind === 'shears') this.tool.scale.set(0.7, 0.65, 0.7);
+    else this.tool.scale.set(1, 1, 1);
+  }
+
+  swing(value = 0) {
+    if (!value) return;
+    const angle = Math.sin(Math.min(1, value) * Math.PI) * 1.25;
+    this.arm.rotation.x -= angle;
+    this.rarm.rotation.x -= angle;
+  }
+
+  close() {
+    const mats = new Set();
+    this.group.traverse(node => {
+      node.geometry?.dispose();
+      if (node.material) mats.add(node.material);
+    });
+    for (const mat of mats) mat.dispose();
+    this.group.parent?.remove(this.group);
   }
 }
 

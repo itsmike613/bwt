@@ -4,6 +4,7 @@ import { Build } from './build.js';
 import { Player } from './player.js';
 import { wish } from './motion.js';
 import { move as tune } from '../data/tune.js';
+import { face, turn as pose } from './pose.js';
 
 function assert(value, message) {
   if (!value) throw new Error(message);
@@ -11,6 +12,14 @@ function assert(value, message) {
 
 function close(value, target, span = 0.03) {
   return Math.abs(value - target) <= span;
+}
+
+
+{
+  assert(close(Math.abs(face(0)), Math.PI, 0.0001), 'skin forward should oppose +Z at camera yaw zero');
+  assert(close(face(Math.PI / 2), -Math.PI / 2, 0.0001), 'skin facing should match camera yaw after model-axis correction');
+  const value = pose(Math.PI - 0.1, -Math.PI + 0.1, 0.5);
+  assert(Math.abs(Math.abs(value) - Math.PI) < 0.11, 'yaw interpolation should take the short path across pi');
 }
 
 class Keys {

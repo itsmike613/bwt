@@ -418,3 +418,5 @@ button:disabled {
 .preview #notice,
 .preview #countdown,
 .preview #inventory { display: none !important; }
+
+#cross.hit::before, #cross.hit::after { background: #ffd36a; }
