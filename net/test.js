@@ -1,9 +1,19 @@
 import { claim, code, cycle, elect, form, join, member, players, random, valid } from '../data/room.js';
 import { admit } from './admit.js';
+import { readFileSync } from 'node:fs';
 
 function assert(value, message) {
   if (!value) throw new Error(message);
 }
+
+
+const fire = readFileSync(new URL('./firebase.js', import.meta.url), 'utf8');
+const login = readFileSync(new URL('./auth.js', import.meta.url), 'utf8');
+assert(fire.includes('initializeAuth'), 'Firebase Auth uses explicit initializeAuth');
+assert(fire.includes('browserSessionPersistence'), 'Firebase Auth selects session persistence during initialization');
+assert(!fire.includes('getAuth'), 'Firebase Auth is not initialized through getAuth');
+assert(!login.includes('setPersistence'), 'signin does not change persistence after Auth initialization');
+console.log('Firebase Auth initialization audit passed (static source audit, not a cross-tab runtime test)');
 
 const known = ['plain', 'red', 'blue'];
 let check = form('', 'plain', '', known);

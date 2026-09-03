@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
+import { browserSessionPersistence, initializeAuth } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import { getDatabase } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js';
 import { config, ready } from '../data/firebase.js';
 
@@ -15,7 +15,10 @@ function boot() {
   }
   if (!app) {
     app = initializeApp(config);
-    auth = getAuth(app);
+    auth = initializeAuth(app, {
+      persistence: browserSessionPersistence,
+      popupRedirectResolver: undefined
+    });
     db = getDatabase(app);
   }
   return { app, auth, db };

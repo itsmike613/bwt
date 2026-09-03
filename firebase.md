@@ -19,7 +19,7 @@ This milestone uses Firebase only for authentication, room/lobby state, presence
 5. Add `localhost` if you want to test with `http://localhost:8000`. New Firebase projects no longer add localhost automatically.
 6. When the GitHub Pages site exists, add its host as an authorized domain, for example `YOURNAME.github.io`.
 
-The client deliberately uses session persistence so separate browser tabs/profiles can represent separate anonymous players during testing while a refresh in the same tab keeps that tab's anonymous session.
+The client initializes Firebase Auth with `initializeAuth()` and `browserSessionPersistence` from the beginning, before Auth can restore any default LOCAL user. This keeps the anonymous identity for refreshes in the same tab/session while allowing different tabs to hold different Firebase users. `net/auth.js` does not change persistence after initialization.
 
 ## 3. Create Realtime Database
 
@@ -70,18 +70,17 @@ python -m http.server 8000
 
 Open `http://localhost:8000/index.html`.
 
-For a two-player test, use two separate browser profiles/private windows if your browser copies session storage between newly opened tabs. Each player needs a different anonymous Firebase UID.
+For the live two-player test, open two normal tabs to the app. Create the room in Tab A, then join it from Tab B. The console prints only a shortened Firebase UID as `[Auth] uid=xxxxxxxx…`; the two tabs should show different shortened UIDs. Refreshing one tab should keep that tab's anonymous identity for the current browser session.
 
-Suggested test:
+Suggested live Auth/room test:
 
-1. Browser A: enter a name, skin, code such as `TEST1`, then Create.
-2. Browser B: use a different name/skin, enter `TEST1`, open Developer Tools → Console, then press Join. Browser B should enter the existing lobby. The console should show `[Join TEST1]` diagnostics for preflight existence and the transaction result. If a transaction callback receives `null`, the log should show the reread and bounded retry instead of immediately reporting Room not found.
-3. Confirm both player cards appear in both lobbies.
-4. On the host browser, click each team button to cycle Unassigned → Red → Blue → Unassigned.
-5. Test Randomize.
-6. Confirm Start stays disabled until both teams are populated and every player is assigned.
-7. Start the room. The Milestone 1 match placeholder should show WebRTC data-channel connection progress. It intentionally does not start Milestone 2 BedWars gameplay yet.
-8. Close the host while still in a lobby and confirm another remaining player becomes host after Firebase processes the disconnect.
+1. Tab A: enter username `itsmike613`, choose a skin, enter `HELLO`, then press Create. Record the shortened `[Auth] uid=xxxxxxxx…` diagnostic.
+2. Open Tab B normally to the same app URL. Enter username `testbob`, choose a skin, enter `HELLO`, then press Join. Record Tab B's shortened Auth UID and the `[Join HELLO]` diagnostics.
+3. The two shortened Auth UIDs must differ.
+4. Both tabs must show exactly two player cards: `itsmike613` and `testbob`.
+5. `itsmike613` must remain Host in both tabs. `testbob` must not overwrite the creator's player entry.
+6. Refreshing a tab during the same browser session should keep that tab's Firebase anonymous identity because Auth was initialized with session persistence.
+7. After the identity test passes, the existing lobby checks can continue: team cycling, Randomize, Start validation, initial WebRTC connection status, and lobby host-disconnect promotion.
 
 ## 6. GitHub Pages later
 

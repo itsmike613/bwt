@@ -224,3 +224,25 @@ Additional build checks verify every local placeholder skin is exactly 64×64, `
 - Realtime room creation/join capacity uses RTDB transactions because concurrent clients must not claim the same code or exceed the 10-player cap.
 - Lobby host promotion is intentionally limited to lobby state in Milestone 1; active-match host disconnect behavior remains the specified Milestone 5 flow.
 - WebRTC uses a host-centered star topology. Clients send later gameplay inputs/actions to the host; authoritative snapshots/events can return over the same DataChannels without pushing gameplay-rate state through RTDB.
+
+## Firebase Auth session fix
+
+Live Milestone 1 testing exposed a root-cause Auth identity collision between browser tabs. The previous initialization path called `getAuth(app)`, which allowed Firebase Auth to initialize with its default LOCAL browser persistence before `net/auth.js` later changed persistence. A second tab could therefore restore the first tab's anonymous Firebase user and reuse the same UID, causing the second player record to overwrite the first because room players are intentionally keyed by Firebase UID.
+
+Changes made:
+
+- `net/firebase.js` no longer imports or calls `getAuth()`.
+- Auth is now initialized exactly once with `initializeAuth(app, { persistence: browserSessionPersistence, popupRedirectResolver: undefined })` immediately after the Firebase app is initialized.
+- Session persistence is therefore selected before Auth has any opportunity to restore a default LOCAL user.
+- `net/auth.js` no longer imports or calls `setPersistence()`.
+- `signin()` waits for Auth readiness, reuses the current anonymous user for that tab/session when present, and calls `signInAnonymously()` only when the tab has no current user.
+- A temporary development diagnostic logs only the first eight characters of the Firebase UID (`[Auth] uid=xxxxxxxx…`) so the project owner can verify that two live tabs receive different identities without exposing tokens, credentials, or Firebase configuration.
+- Room schema, room transactions, presence, lobby ownership, and WebRTC architecture were not changed.
+
+Audit/verification:
+
+- Project source was searched after the change: there are no remaining calls/imports of `getAuth()` or `setPersistence()`.
+- `initializeAuth()` exists only in `net/firebase.js`, so no earlier accidental Auth initialization path remains in project-authored code.
+- Existing `core/test.js` and `net/test.js` still pass and all JavaScript passes `node --check`.
+- These local/static tests verify code structure and existing room logic only. They do not prove cross-tab Firebase runtime behavior. The required live verification is: Tab A creates `HELLO` as `itsmike613`; Tab B joins as `testbob`; both tabs show two cards; `itsmike613` remains host; and the shortened Firebase UIDs differ.
+- Milestone 2 remains blocked until that live two-tab verification succeeds.
