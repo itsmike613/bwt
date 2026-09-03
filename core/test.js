@@ -119,6 +119,40 @@ assert(build.break({ x: 16, y: -1, z: -16 }, false) === true, 'placed break');
 assert(world.get(16, -1, -16) === 0, 'placed block removed');
 world.set(16, -1, -16, 2, 2);
 
+
+
+const empty = new World();
+empty.del(99, 99, 99);
+assert(empty.chunks.size === 0, 'deleting empty space does not allocate an empty chunk');
+
+const dirty = new World();
+dirty.set(0, 0, 0, 1, 1);
+let rebuilds = 0;
+dirty.flush(chunk => {
+  rebuilds++;
+  chunk.dirty = false;
+});
+assert(rebuilds === 1, 'new voxel dirties its chunk once');
+dirty.set(0, 0, 0, 1, 1);
+dirty.flush(() => rebuilds++);
+assert(rebuilds === 1, 'setting identical voxel data does not dirty/remesh a chunk');
+dirty.set(0, 0, 0, 1, 2);
+dirty.flush(() => rebuilds++);
+assert(rebuilds === 1, 'provenance-only changes do not dirty visual geometry');
+dirty.set(15, 0, 0, 1, 1);
+dirty.set(16, 0, 0, 1, 1);
+dirty.flush(chunk => {
+  rebuilds++;
+  chunk.dirty = false;
+});
+const beforeedge = rebuilds;
+dirty.del(15, 0, 0);
+dirty.flush(chunk => {
+  rebuilds++;
+  chunk.dirty = false;
+});
+assert(rebuilds - beforeedge === 2, 'boundary occupancy changes dirty both affected chunks only');
+
 const markers = {
   red: { spawn: { x: 1, y: 2, z: 3 } },
   diamond: [{ x: 4, y: 5, z: 6 }, { x: -4, y: 5, z: -6 }]
@@ -197,6 +231,137 @@ jump.input.lift('Space');
 assert(jump.player.vel.y > 0 && jump.player.pos.y > 1.001, 'jump leaves ground upward');
 step(jump.player, jump.input, 120);
 assert(jump.player.ground && close(jump.player.pos.y, 1.001, 0.03), 'jump lands on blocks');
+
+
+
+const holdjump = new World();
+floor(holdjump, -48, 8);
+const repeat = make(holdjump);
+repeat.input.hold('Space');
+let leaps = 0;
+let oldvel = repeat.player.vel.y;
+for (let i = 0; i < 300; i++) {
+  repeat.player.tick(1 / 60);
+  repeat.input.clear();
+  if (oldvel <= 0 && repeat.player.vel.y > 0) leaps++;
+  oldvel = repeat.player.vel.y;
+}
+repeat.input.lift('Space');
+assert(leaps >= 5, 'holding Space repeatedly jumps after each landing');
+
+const buffered = make(ground);
+buffered.player.pos.y = 1.35;
+buffered.player.prev.y = 1.35;
+buffered.player.ground = false;
+buffered.player.vel.y = -3;
+buffered.input.tap('Space');
+step(buffered.player, buffered.input);
+buffered.input.lift('Space');
+let bufferedjump = false;
+for (let i = 0; i < 10; i++) {
+  buffered.player.tick(1 / 60);
+  buffered.input.clear();
+  if (buffered.player.vel.y > 0) bufferedjump = true;
+}
+assert(bufferedjump, 'jump buffer preserves a jump pressed shortly before landing');
+
+
+const flatrun = new World();
+floor(flatrun, -64, 8);
+const flat = make(flatrun);
+flat.input.hold('KeyW');
+flat.input.hold('ControlLeft');
+flat.input.hold('Space');
+let flatjumps = 0;
+oldvel = flat.player.vel.y;
+for (let i = 0; i < 360; i++) {
+  flat.player.tick(1 / 60);
+  flat.input.clear();
+  if (oldvel <= 0 && flat.player.vel.y > 0) flatjumps++;
+  oldvel = flat.player.vel.y;
+}
+flat.input.lift('KeyW');
+flat.input.lift('ControlLeft');
+flat.input.lift('Space');
+assert(flatjumps >= 7 && flat.player.pos.z < -25, 'continuous sprint-jumping crosses flat terrain');
+
+const ledge = new World();
+for (let z = -4; z <= 4; z++) {
+  for (let x = -2; x <= 2; x++) ledge.set(x, 0, z, 1, 1);
+}
+for (let z = -2; z <= 0; z++) {
+  for (let x = -1; x <= 1; x++) ledge.set(x, 1, z, 1, 1);
+}
+const landing = make(ledge);
+landing.player.pos.z = -0.5;
+landing.player.prev.z = -0.5;
+landing.player.pos.y = 4;
+landing.player.prev.y = 4;
+landing.player.ground = false;
+step(landing.player, landing.input, 180);
+assert(landing.player.ground && close(landing.player.pos.y, 2.001, 0.03), 'landing on a raised block restores grounded support');
+landing.input.hold('Space');
+step(landing.player, landing.input);
+landing.input.lift('Space');
+assert(landing.player.vel.y > 0 && landing.player.pos.y > 2.001, 'raised-block support allows an immediate next jump');
+
+const wallstep = make(ledge);
+wallstep.player.pos.z = 1.5;
+wallstep.player.prev.z = 1.5;
+wallstep.input.hold('KeyW');
+step(wallstep.player, wallstep.input, 120);
+wallstep.input.lift('KeyW');
+assert(wallstep.player.pos.z > 0.29 && wallstep.player.pos.y < 1.05, 'walking does not auto-step onto one-block-high terrain');
+
+const course = new World();
+for (let z = -50; z <= 8; z++) {
+  for (let x = -2; x <= 2; x++) course.set(x, 0, z, 1, 1);
+}
+for (let z = -7; z >= -16; z--) {
+  for (let x = -2; x <= 2; x++) course.set(x, 1, z, 1, 1);
+}
+const runner = make(course);
+runner.input.hold('KeyW');
+runner.input.hold('ControlLeft');
+runner.input.hold('Space');
+let runjumps = 0;
+let highjump = false;
+let highseen = false;
+let lowseen = false;
+oldvel = runner.player.vel.y;
+for (let i = 0; i < 500; i++) {
+  runner.player.tick(1 / 60);
+  runner.input.clear();
+  if (oldvel <= 0 && runner.player.vel.y > 0) {
+    runjumps++;
+    if (runner.player.pos.y > 1.9 && runner.player.pos.z < -7 && runner.player.pos.z > -17) highjump = true;
+  }
+  oldvel = runner.player.vel.y;
+  if (runner.player.pos.z < -7 && runner.player.pos.z > -16 && runner.player.pos.y > 1.9) highseen = true;
+  if (runner.player.pos.z < -17 && runner.player.pos.y < 1.9) lowseen = true;
+}
+runner.input.lift('KeyW');
+runner.input.lift('ControlLeft');
+runner.input.lift('Space');
+assert(runjumps >= 8, 'continuous sprint-jumping repeats across terrain');
+assert(highseen, 'sprint-jump reaches one-block-high terrain');
+assert(highjump, 'landing/support on raised blocks allows the next held jump');
+assert(lowseen && runner.player.pos.z < -30, 'sprint-jump continues smoothly off raised terrain');
+
+const creativerepeat = make(holdjump, true);
+creativerepeat.input.tap('Space');
+step(creativerepeat.player, creativerepeat.input);
+let creativejumps = 1;
+oldvel = creativerepeat.player.vel.y;
+for (let i = 0; i < 240; i++) {
+  creativerepeat.player.tick(1 / 60);
+  creativerepeat.input.clear();
+  if (oldvel <= 0 && creativerepeat.player.vel.y > 0) creativejumps++;
+  oldvel = creativerepeat.player.vel.y;
+}
+creativerepeat.input.lift('Space');
+assert(!creativerepeat.player.flight, 'holding Space alone does not trigger creative flight');
+assert(creativejumps >= 4, 'creative grounded mode preserves held repeated jumping');
 
 const edge = new World();
 edge.set(0, 0, 0, 1, 1);

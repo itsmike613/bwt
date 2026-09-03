@@ -22,6 +22,7 @@ class Player {
     this.flight = false;
     this.time = 0;
     this.tap = -Infinity;
+    this.buffer = 0;
   }
 
   spawn(x, y, z) {
@@ -39,6 +40,7 @@ class Player {
     this.eye = tune.eye;
     this.flight = false;
     this.tap = -Infinity;
+    this.buffer = 0;
     this.ground = support(this.world, this);
   }
 
@@ -84,24 +86,36 @@ class Player {
     }
   }
 
-  space() {
-    if (!this.input.press('Space')) return false;
-    if (this.creative && this.time - this.tap <= tune.tap) {
-      this.flight = !this.flight;
-      this.tap = -Infinity;
-      this.vel.y = 0;
-      if (this.flight) this.stand();
-      return true;
+  hop() {
+    if (this.flight || !this.ground || this.buffer <= 0) return false;
+    this.vel.y = tune.jump;
+    this.ground = false;
+    this.buffer = 0;
+    this.crouch = false;
+    this.height = tune.stand;
+    this.eye = tune.eye;
+    return true;
+  }
+
+  space(dt) {
+    this.buffer = Math.max(0, this.buffer - dt);
+    const pressed = this.input.press('Space');
+
+    if (pressed) {
+      this.buffer = tune.buffer;
+      if (this.creative && this.time - this.tap <= tune.tap) {
+        this.flight = !this.flight;
+        this.tap = -Infinity;
+        this.buffer = 0;
+        this.vel.y = 0;
+        if (this.flight) this.stand();
+        return true;
+      }
+      this.tap = this.time;
     }
 
-    this.tap = this.time;
-    if (!this.flight && this.ground) {
-      this.vel.y = tune.jump;
-      this.ground = false;
-      this.crouch = false;
-      this.height = tune.stand;
-      this.eye = tune.eye;
-    }
+    if (this.input.held('Space') && !this.flight) this.buffer = tune.buffer;
+    this.hop();
     return false;
   }
 
@@ -152,10 +166,13 @@ class Player {
     this.prev.y = this.pos.y;
     this.prev.z = this.pos.z;
 
-    const toggled = this.space();
+    const toggled = this.space(dt);
     if (!this.flight) this.duck();
     if (this.flight) this.fly(dt);
-    else this.walk(dt);
+    else {
+      this.walk(dt);
+      this.hop();
+    }
 
     if (toggled && !this.flight) this.ground = support(this.world, this);
   }

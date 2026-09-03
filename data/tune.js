@@ -15,7 +15,8 @@ const move = {
   low: 1.27,
   reach: 5,
   mouse: 0.0022,
-  tap: 0.3
+  tap: 0.3,
+  buffer: 0.12
 };
 
 const fly = {

@@ -32,19 +32,31 @@ class Chunk {
 class World {
   constructor() {
     this.chunks = new Map();
+    this.dirty = new Set();
+    this.last = { x: 0, y: 0, z: 0, chunk: null, valid: false };
   }
 
   chunk(x, y, z, create = false) {
     const cx = div(x);
     const cy = div(y);
     const cz = div(z);
+    if (this.last.valid && this.last.x === cx && this.last.y === cy && this.last.z === cz) {
+      if (this.last.chunk || !create) return this.last.chunk;
+    }
+
     const id = key(cx, cy, cz);
     let chunk = this.chunks.get(id);
     if (!chunk && create) {
       chunk = new Chunk(cx, cy, cz);
       this.chunks.set(id, chunk);
+      this.dirty.add(chunk);
     }
-    return chunk ?? null;
+    this.last.x = cx;
+    this.last.y = cy;
+    this.last.z = cz;
+    this.last.chunk = chunk ?? null;
+    this.last.valid = true;
+    return this.last.chunk;
   }
 
   get(x, y, z) {
@@ -60,20 +72,30 @@ class World {
   }
 
   set(x, y, z, id, kind = 1) {
-    const chunk = this.chunk(x, y, z, true);
+    let chunk = this.chunk(x, y, z);
+    if (!chunk && !id) return false;
+    if (!chunk) chunk = this.chunk(x, y, z, true);
     const index = slot(mod(x), mod(y), mod(z));
+    const old = chunk.data[index];
+    const prior = chunk.kind[index];
+    const next = id ? kind : 0;
+    if (old === id && prior === next) return false;
+
     chunk.data[index] = id;
-    chunk.kind[index] = id ? kind : 0;
-    this.touch(x, y, z);
+    chunk.kind[index] = next;
+
+    if (old !== id) {
+      this.mark(chunk.x, chunk.y, chunk.z);
+      if (Boolean(old) !== Boolean(id)) this.touch(x, y, z);
+    }
+    return true;
   }
 
   del(x, y, z) {
-    this.set(x, y, z, 0, 0);
+    return this.set(x, y, z, 0, 0);
   }
 
   touch(x, y, z) {
-    const chunk = this.chunk(x, y, z);
-    if (chunk) chunk.dirty = true;
     const lx = mod(x);
     const ly = mod(y);
     const lz = mod(z);
@@ -87,7 +109,17 @@ class World {
 
   mark(x, y, z) {
     const chunk = this.chunks.get(key(x, y, z));
-    if (chunk) chunk.dirty = true;
+    if (!chunk) return;
+    chunk.dirty = true;
+    this.dirty.add(chunk);
+  }
+
+  flush(run) {
+    if (!this.dirty.size) return;
+    for (const chunk of this.dirty) {
+      if (chunk.dirty) run(chunk);
+    }
+    this.dirty.clear();
   }
 
   each(run) {
@@ -103,6 +135,9 @@ class World {
       });
     }
     this.chunks.clear();
+    this.dirty.clear();
+    this.last.chunk = null;
+    this.last.valid = false;
   }
 }
 

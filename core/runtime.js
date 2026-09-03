@@ -12,6 +12,10 @@ class Runtime {
     this.input = new Input(this.view.render.domElement);
     this.mats = make();
     this.loop = new Loop();
+    this.mesh = chunk => {
+      const group = mesh(this.world, chunk, this.mats);
+      this.view.scene.add(group);
+    };
     this.tick = null;
     this.frame = null;
     this.loop.tick = dt => {
@@ -26,11 +30,7 @@ class Runtime {
   }
 
   sync() {
-    this.world.each(chunk => {
-      if (!chunk.dirty) return;
-      const group = mesh(this.world, chunk, this.mats);
-      this.view.scene.add(group);
-    });
+    this.world.flush(this.mesh);
   }
 
   start() {

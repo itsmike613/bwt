@@ -59,9 +59,12 @@ async function play(data) {
     if (runtime.input.press('Digit4')) selected = 5;
     player.tick(dt);
     if (!runtime.input.locked) return;
+    const left = runtime.input.click(0);
+    const right = runtime.input.click(2);
+    if (!left && !right) return;
     const hit = cast(runtime.world, runtime.view.camera, tune.reach);
-    if (runtime.input.click(0)) build.break(hit, false);
-    if (runtime.input.click(2)) build.place(hit, selected, player, 2);
+    if (left) build.break(hit, false);
+    if (right) build.place(hit, selected, player, 2);
   };
   runtime.frame = alpha => player.frame(alpha);
   runtime.start();

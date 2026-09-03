@@ -4,7 +4,7 @@
 
 Milestone 1 — Foundation
 
-Current slice: shared movement/controller foundation repair and editor Creative Mode behavior.
+Current slice: final shared movement/controller and core-quality pass before Firebase.
 
 Firebase/rooms are intentionally paused until this foundation is accepted.
 
@@ -72,6 +72,11 @@ Firebase/rooms are intentionally paused until this foundation is accepted.
 - The existing `Fly` path is no longer used by the editor and remains separate for future noclip spectator behavior; it shares the corrected directional basis.
 - Input state is cleared on blur/pointer-lock loss to reduce stuck-key behavior.
 - Movement, flight, mouse sensitivity, and double-tap timing remain centralized in `data/tune.js`.
+- Holding Space while grounded now continuously requests jumping, so the player jumps again as soon as landing/support is regained without requiring a key release.
+- A centralized 0.12-second jump buffer preserves jump input pressed shortly before landing.
+- Jump consumption runs both before movement and immediately after collision/support resolution, so a buffered or held jump can continue cleanly from a landing without an avoidable dead tick.
+- Creative flight still toggles only from distinct Space presses; holding Space by itself does not accidentally trigger the double-tap flight toggle.
+- Ground support detection now checks a thin support slab strictly below the player's feet rather than relying on an AABB that could include the player's current vertical cell. This keeps support reliable on one-block-high landings without adding auto-step.
 
 ## Movement tests
 
@@ -92,11 +97,46 @@ Firebase/rooms are intentionally paused until this foundation is accepted.
 - Second double-tap Space disabling flight.
 - Normal falling and landing after flight is disabled.
 - Mouse yaw/pitch application on render frames.
+- Holding Space through repeated landings produces repeated jumps.
+- A released Space press shortly before landing is consumed by the jump buffer after landing.
+- Continuous sprint-jumping across flat terrain.
+- Falling onto a one-block-high platform restores grounded/support state and permits an immediate next jump.
+- Continuous sprint-jumping onto a one-block-high section, jumping again from that raised support, then continuing off the raised section.
+- Walking into one-block-high terrain without jumping remains blocked; no auto-step behavior was introduced.
+- Holding Space in grounded Creative mode does not accidentally toggle flight; the existing double-tap flight tests still pass.
+- Dirty-chunk regression coverage: no-op deletes do not create chunks, identical/provenance-only writes do not schedule visual rebuilds, and an occupancy change at a chunk boundary dirties the two affected chunks.
 - Existing map protection, player-block breaking, map round-trip, and marker round-trip tests.
 
 All project JavaScript files also pass `node --check` syntax validation.
 
 A headless Chromium WebGL launch was attempted in the build container, but that environment cannot initialize EGL/WebGL, so interactive pointer-lock feel still needs to be verified in a normal browser by the project owner.
+
+## Core engineering/performance audit
+
+Inspected the existing shared runtime, world, mesher, collision, input, raycast, editor marker, and render paths with Chromebook performance as an explicit constraint. No architectural rewrite was justified.
+
+Changes made:
+
+- Kept the existing sparse 16×16×16 chunk architecture and grouped visible-face meshing.
+- Added a dirty-chunk set. `Runtime.sync()` now processes only chunks that are actually dirty instead of iterating every loaded chunk on every rendered frame.
+- `World.set()` now ignores identical writes and no-op deletes do not allocate empty chunks. Provenance-only changes update metadata without forcing a visual remesh.
+- Neighbor chunks are dirtied at boundaries only when voxel occupancy changes, because texture/provenance changes inside one occupied voxel do not change the neighboring chunk's hidden-face geometry.
+- Added a one-entry chunk lookup cache in `World` so repeated collision/world queries inside the same chunk avoid rebuilding string keys and repeating map lookups.
+- Reworked the collision hot path to use scalar bounds internally instead of allocating temporary position/AABB objects for every movement probe. The public `box()` helper remains for infrequent placement/standing checks.
+- Removed the unused per-tick collision result-object allocation.
+- Editor/game interaction code now performs voxel DDA raycasting only when the current foundation actually has a left/right interaction click, avoiding an otherwise unnecessary raycast and Three.js vector allocation every physics tick.
+- Verified chunk remeshing already removes old scene groups and disposes replaced geometries. `World.clear()` also removes chunk groups and disposes their geometries. Editor marker redraw already disposes marker geometry, material, and generated label textures.
+- Kept antialiasing disabled and the existing pixel-ratio cap; no dynamic shadows or other expensive rendering features were introduced.
+- Preserved fixed-step 60 Hz physics and render interpolation exactly.
+- Preserved the same shared `Player`, collision, world, renderer, and map systems for editor and game.
+
+Intentionally deferred after inspection:
+
+- Greedy meshing, a texture atlas, occlusion systems, workers, and other large renderer optimizations are not justified without real map/Chromebook profiling. The current renderer is still one chunk group with at most one mesh/draw call per material present in that chunk.
+- Empty chunks are retained after their last voxel is removed. This can waste memory in an extremely long editor session that touches and erases many distant chunks, but removing them cleanly is not currently worth complicating the chunk/scene lifecycle. Revisit only if editor profiling demonstrates it matters.
+- Shared block materials/textures and global input/resize listeners do not yet have a full runtime teardown path. Current pages create one runtime for their lifetime, so this is not a current-session leak; a proper teardown must be added before repeated Match → Lobby → Match runtime creation is introduced.
+- `cast()` still creates short-lived Three.js/vector/result objects when it is called. It is now interaction-driven in the current foundation. If continuous target highlighting/breaking later requires per-frame casting, reuse scratch vectors/results then rather than prematurely complicating it now.
+- Real draw-call, GPU, and memory profiling on modest Chromebooks remains a Milestone 6 requirement and cannot be replaced by Node-only regression tests.
 
 ## Unfinished Milestone 1 work
 
@@ -116,14 +156,15 @@ A headless Chromium WebGL launch was attempted in the build container, but that 
 - This slice has no Firebase configuration yet; Create/Join still show a small inline setup message rather than pretending rooms work.
 - Editor marker visuals are temporary wire boxes, deliberately separate from map block data.
 - Editor block breaking is immediate. Timed break hardness and crack overlays belong to the later combat refinement milestone, while the provenance/protection foundation is already in place.
-- Movement values are centralized and can still be tuned during later polish, but the controller architecture and requested movement/flight behaviors are now implemented and covered by automated tests.
+- Movement values are centralized and can still be tuned during later polish, but the controller architecture, held/buffered jumping, raised-block support, and requested movement/flight behaviors are now implemented and covered by automated tests.
 - Placeholder textures are intentionally simple and legally original.
 
 ## Important implementation decisions
 
 - Chunk size is 16 blocks per axis.
 - Each chunk stores block IDs and provenance in typed arrays.
-- World geometry is rebuilt only for dirty chunks; neighboring chunks are dirtied when boundary voxels change.
+- World geometry is rebuilt only for dirty chunks through a dirty set; the render loop does not scan all loaded chunks for dirtiness.
+- Identical voxel writes and provenance-only changes do not trigger mesh rebuilds; boundary neighbors are dirtied only when occupancy changes.
 - Each chunk is represented by a small set of meshes grouped by texture/material, not one mesh per block.
 - Texture files are individual 32×32 PNGs so art can be replaced without an atlas build pipeline.
 - Map export writes only block geometry and marker metadata; gameplay logic reads marker positions rather than hardcoding island geometry.

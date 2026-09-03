@@ -54,9 +54,12 @@ for (const def of defs) {
 runtime.tick = dt => {
   player.tick(dt);
   if (!runtime.input.locked) return;
+  const left = runtime.input.click(0);
+  const right = runtime.input.click(2);
+  if (!left && !right) return;
   const hit = cast(runtime.world, runtime.view.camera, tune.reach);
-  if (runtime.input.click(0)) build.break(hit, true);
-  if (runtime.input.click(2) && hit) {
+  if (left) build.break(hit, true);
+  if (right && hit) {
     if (selected.type === 'block') {
       build.place(hit, selected.id, player, 1);
     } else {

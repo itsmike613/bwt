@@ -21,7 +21,7 @@ The client is static and uses relative project paths so it can be hosted from a 
 
 ## Editor movement
 
-The editor starts in normal collision-based movement. Double-tap Space to toggle creative flight. While flying, Space rises and Shift descends; flight still collides with blocks.
+The editor starts in normal collision-based movement. Hold Space to keep jumping whenever you land. Double-tap Space to toggle creative flight. While flying, Space rises and Shift descends; flight still collides with blocks.
 
 ## Foundation tests
 
