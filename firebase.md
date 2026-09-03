@@ -30,7 +30,9 @@ The client deliberately uses session persistence so separate browser tabs/profil
 5. Open the **Rules** tab.
 6. Replace the rules with the contents of `rules.json` and publish them.
 
-The Milestone 1 rules require Firebase Authentication and validate the room shape/team values/10-player cap, but they intentionally do not yet attempt the final hostile-client security model. The full Firebase security hardening is explicitly Milestone 5 in `spec.md`.
+The Milestone 1 rules require Firebase Authentication and validate the room/player shape and team values, but they intentionally do not yet attempt the final hostile-client security model. Realtime Database Rules do not expose a supported child-count function, so the 10-player room limit is enforced by the existing atomic join transaction in `net/room.js` using the pure room logic in `data/room.js`. Concurrent joins are retried by Firebase transactions against the latest room state, so the normal application flow cannot commit an eleventh player. Independent server-side enforcement of the cap against a deliberately modified client is deferred to the Milestone 5 security-hardening pass rather than redesigning the room model here.
+
+Fresh-client join detail: RTDB transaction callbacks can initially receive `null` even when the remote room exists if that location is not yet in the client's local cache. The Join path therefore performs one `get()` on the room reference before starting the atomic transaction. That read establishes existence and warms the same SDK/reference cache; the transaction remains authoritative for room state and the 10-player limit. If the room fills, starts, or disappears after the `get()`, the transaction evaluates the newer server state and rejects the join with the appropriate result. Presence reconnects reuse this same Join path rather than maintaining a duplicate room-update implementation.
 
 ## 4. Fill `data/firebase.js`
 

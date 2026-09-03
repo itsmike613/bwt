@@ -1,4 +1,5 @@
 import {
+  get,
   onValue,
   ref,
   remove,
@@ -9,11 +10,11 @@ import {
   claim as build,
   cycle as rotate,
   elect as promote,
-  join as enter,
   member,
   random as mix,
   valid
 } from '../data/room.js';
+import { admit } from './admit.js';
 
 async function claim(db, code, profile) {
   const target = ref(db, `rooms/${code}`);
@@ -28,13 +29,14 @@ async function claim(db, code, profile) {
 async function join(db, code, profile) {
   const target = ref(db, `rooms/${code}`);
   const item = member(profile.uid, profile.name, profile.skin, serverTimestamp());
-  const result = await runTransaction(target, current => {
-    const check = enter(current, item);
-    return check.ok ? check.room : undefined;
-  }, { applyLocally: false });
-  if (result.committed) return { ok: true, room: result.snapshot.val() };
-  const check = enter(result.snapshot.val(), item);
-  return { ok: false, code: check.code };
+  return admit(
+    async () => (await get(target)).val(),
+    async update => {
+      const result = await runTransaction(target, update, { applyLocally: false });
+      return { committed: result.committed, room: result.snapshot.val() };
+    },
+    item
+  );
 }
 
 function watch(db, code, change, fail) {

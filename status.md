@@ -58,7 +58,7 @@ Milestone 1 implementation is now complete in code. Live Firebase Console config
 - Firebase modular browser SDK pinned to 12.18.0 for Authentication and Realtime Database without adding a bundler/framework.
 - Anonymous Authentication through `net/auth.js`, using session persistence so separate testing windows can hold separate anonymous users while a tab refresh can retain its session.
 - Atomic invite-code room claiming with an RTDB transaction at the room path; the creator becomes the initial host.
-- Atomic room joining with transaction-based 10-player capacity checks and explicit not-found/full/already-started results.
+- Atomic room joining with transaction-based 10-player capacity checks and explicit not-found/full/already-started results. Fresh clients now perform a one-time `get()` on the room reference before the join transaction so an uncached initial transaction value cannot be mistaken for a missing room.
 - Landing validation now uses small field/action inline red errors only; normal validation does not use an error page or modal.
 - Firebase presence through `.info/connected` and `onDisconnect`, with disconnect removal queued before the player is refreshed online.
 - Lobby room listener with simple synchronized username/player cards.
@@ -164,6 +164,8 @@ Intentionally deferred after inspection:
 - atomic room-claim logic and duplicate invite-code rejection;
 - room-not-found and 10-player capacity behavior;
 - same-UID refresh without consuming another player slot;
+- fresh-client existing-room Join with an initially empty local room cache, verifying `get()` occurs before the transaction;
+- races after the warm read: a concurrently filled room still returns `full`, and a concurrently started room still returns `started`;
 - required team-cycle order and 5-player team cap;
 - even and odd Randomize results;
 - Start validation for assignment/team population;
@@ -175,7 +177,7 @@ Intentionally deferred after inspection:
 - DataChannel connection counting and host broadcast;
 - departed-peer cleanup and signalling teardown.
 
-Additional build checks verify every local placeholder skin is exactly 64×64, `rules.json` is valid JSON, all JavaScript passes `node --check`, and the required landing/lobby DOM IDs exist. Live Firebase Rules semantics and real browser DataChannel negotiation still require the project owner's Firebase project and browsers.
+Additional build checks verify every local placeholder skin is exactly 64×64, `rules.json` is valid JSON, all JavaScript passes `node --check`, and the required landing/lobby DOM IDs exist. The RTDB Rules API audit was repeated after Firebase rejected the unsupported `numChildren()` call: the corrected file now uses only documented authentication variables, wildcard strings/`matches()`, `exists()`, `hasChildren()`, `child()`, `isString()`, `val()`, and string `length`. Live publish/runtime semantics and real browser DataChannel negotiation still require the project owner's Firebase project and browsers.
 
 ## Milestone 1 verification remaining
 
@@ -187,7 +189,7 @@ Additional build checks verify every local placeholder skin is exactly 64×64, `
 ## Known problems / intentional limits
 
 - `data/firebase.js` intentionally ships with blank configuration values because the real Firebase project belongs to the project owner. Until those values are filled, Create/Join show a small inline configuration error.
-- Milestone 1 `rules.json` validates authenticated room shape, invite format, player shape, team values, and the 10-player cap, but it is not the final hostile-client security model. Full Firebase Rules/security hardening remains explicitly scheduled for Milestone 5.
+- Milestone 1 `rules.json` validates authenticated room shape, invite format, player shape, and team values using supported RTDB Rules APIs. RTDB Rules do not provide a child-count function, so the 10-player cap remains enforced by the existing atomic join transaction rather than by `rules.json`. Full hostile-client Rules/security hardening remains explicitly scheduled for Milestone 5.
 - Presence reconnect during an already-started match and host-disconnect match recovery remain Milestone 5 behavior; this milestone only establishes lobby presence and the initial signalling topology.
 - The post-Start screen is intentionally a connection-status placeholder. Milestone 2 gameplay systems are not implemented or faked.
 - Editor marker visuals are temporary wire boxes, deliberately separate from map block data.
@@ -213,6 +215,7 @@ Additional build checks verify every local placeholder skin is exactly 64×64, `
 - Balance/gameplay constants live in centralized data modules as systems are introduced; movement tuning lives in `data/tune.js`.
 - Firebase initialization/auth/room presence, lobby DOM, skin rendering, WebRTC peer state, and RTDB signalling transport are separate modules rather than one room/game file.
 - Room/team/start decisions are implemented as pure functions in `data/room.js`; Firebase transactions in `net/room.js` reuse them so logic can be regression-tested without a live project.
+- Existing-room Join uses `net/admit.js` as the single Firebase-independent transaction workflow: read/warm once, then reuse the pure `data/room.js` join decision inside the authoritative RTDB transaction. This avoids duplicating room validation between the preflight read, transaction, and presence reconnect path.
 - Invite codes normalize to uppercase and accept 2–20 letters, numbers, or hyphens.
 - Realtime room creation/join capacity uses RTDB transactions because concurrent clients must not claim the same code or exceed the 10-player cap.
 - Lobby host promotion is intentionally limited to lobby state in Milestone 1; active-match host disconnect behavior remains the specified Milestone 5 flow.

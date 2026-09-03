@@ -1,4 +1,5 @@
 import { claim, code, cycle, elect, form, join, member, players, random, valid } from '../data/room.js';
+import { admit } from './admit.js';
 
 function assert(value, message) {
   if (!value) throw new Error(message);
@@ -77,6 +78,70 @@ host = elect(host);
 assert(host.host === 'b', 'remaining player is promoted when lobby host is absent');
 
 console.log('room and lobby logic tests passed');
+
+const clone = value => structuredClone(value);
+
+let remote = claim(null, member('host', 'Host', 'plain', 1), 1).room;
+let cache = null;
+const order = [];
+const fresh = await admit(
+  async () => {
+    order.push('get');
+    cache = clone(remote);
+    return clone(remote);
+  },
+  async update => {
+    order.push('transaction');
+    assert(cache !== null, 'fresh-client get warms room state before the join transaction');
+    const next = update(clone(cache));
+    if (next === undefined) return { committed: false, room: clone(cache) };
+    remote = clone(next);
+    cache = clone(next);
+    return { committed: true, room: clone(next) };
+  },
+  member('fresh', 'Fresh', 'blue', 2)
+);
+assert(fresh.ok && fresh.room.players.fresh, 'fresh client with no initial room cache joins an existing room');
+assert(order.join(',') === 'get,transaction', 'fresh join reads the room before starting its transaction');
+
+remote = claim(null, member('cap0', 'Cap0', 'plain', 1), 1).room;
+for (let i = 1; i < 9; i++) remote = join(remote, member(`cap${i}`, `Cap${i}`, 'plain', i + 1)).room;
+cache = null;
+const raced = await admit(
+  async () => {
+    cache = clone(remote);
+    return clone(remote);
+  },
+  async update => {
+    remote = join(remote, member('cap9', 'Cap9', 'plain', 10)).room;
+    const next = update(clone(remote));
+    return next === undefined
+      ? { committed: false, room: clone(remote) }
+      : { committed: true, room: clone(next) };
+  },
+  member('late', 'Late', 'red', 11)
+);
+assert(!raced.ok && raced.code === 'full', 'atomic transaction still rejects a join when capacity fills after the warm read');
+
+remote = claim(null, member('start0', 'Start0', 'plain', 1), 1).room;
+cache = null;
+const started = await admit(
+  async () => {
+    cache = clone(remote);
+    return clone(remote);
+  },
+  async update => {
+    remote = { ...remote, state: 'match' };
+    const next = update(clone(remote));
+    return next === undefined
+      ? { committed: false, room: clone(remote) }
+      : { committed: true, room: clone(next) };
+  },
+  member('late2', 'Late2', 'blue', 2)
+);
+assert(!started.ok && started.code === 'started', 'transaction still rejects a room that starts after the warm read');
+
+console.log('fresh-client join transaction tests passed');
 
 class Wire {
   constructor() {

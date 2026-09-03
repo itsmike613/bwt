@@ -6,7 +6,7 @@
       "$code": {
         ".read": "auth !== null",
         ".write": "auth !== null && $code.matches(/^[A-Z0-9-]{2,20}$/)",
-        ".validate": "!newData.exists() || (newData.hasChildren(['host','state','players']) && newData.child('host').isString() && newData.child('state').isString() && (newData.child('state').val() === 'lobby' || newData.child('state').val() === 'match') && newData.child('players').numChildren() <= 10)",
+        ".validate": "!newData.exists() || (newData.hasChildren(['host','state','players']) && newData.child('host').isString() && newData.child('state').isString() && (newData.child('state').val() === 'lobby' || newData.child('state').val() === 'match'))",
         "players": {
           "$uid": {
             ".validate": "newData.hasChildren(['uid','name','skin','team','joined']) && newData.child('uid').val() === $uid && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 16 && newData.child('skin').isString() && newData.child('team').isString() && (newData.child('team').val() === 'none' || newData.child('team').val() === 'red' || newData.child('team').val() === 'blue')"
