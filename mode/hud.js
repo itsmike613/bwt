@@ -13,6 +13,8 @@ class Hud {
     this.notice = document.querySelector('#notice');
     this.beds = document.querySelector('#beds');
     this.network = document.querySelector('#network');
+    this.armor = document.querySelector('#armor');
+    this.regen = document.querySelector('#regen');
     this.info = document.querySelector('#info');
     this.cross = document.querySelector('#cross');
     this.flash = null;
@@ -96,6 +98,9 @@ class Hud {
     const red = state.beds?.red ? 'Red bed ✓' : 'Red bed ✕';
     const blue = state.beds?.blue ? 'Blue bed ✓' : 'Blue bed ✕';
     this.beds.textContent = `${red} · ${blue}`;
+    const tier = player?.armor ?? 'leather';
+    this.armor.textContent = `${tier[0].toUpperCase()}${tier.slice(1)} Armor`;
+    this.regen.hidden = !(player?.regen > 0);
   }
 
   count(value) {

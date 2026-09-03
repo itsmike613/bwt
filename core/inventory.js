@@ -21,6 +21,18 @@ class Inventory {
     return total;
   }
 
+  fit(id, count = 1) {
+    const def = item(id);
+    if (!def || count <= 0) return false;
+    let room = 0;
+    for (const slot of this.slots) {
+      if (!slot) room += def.stack;
+      else if (slot.id === id) room += Math.max(0, def.stack - slot.count);
+      if (room >= count) return true;
+    }
+    return room >= count;
+  }
+
   add(id, count = 1) {
     const def = item(id);
     if (!def || count <= 0) return count;

@@ -8,6 +8,8 @@ import { time as minetime } from './mine.js';
 import { aim, damage, knock, reach } from './fight.js';
 import { blocks as blast } from './blast.js';
 import { Bags } from './bags.js';
+import { Economy } from './economy.js';
+import { shop } from '../data/balance.js';
 
 function room() {
   return {
@@ -102,6 +104,8 @@ function room() {
   assert.ok(mark.red?.spawn && mark.blue?.spawn);
   assert.ok(mark.red?.bed && mark.blue?.bed);
   assert.ok(mark.red?.forge && mark.blue?.forge);
+  assert.ok(mark.red?.item && mark.blue?.item);
+  assert.ok(mark.red?.island && mark.blue?.island);
   assert.ok(mark.spectator);
   assert.ok(Array.isArray(mark.diamond) && mark.diamond.length > 0);
   assert.ok(Array.isArray(mark.emerald) && mark.emerald.length > 0);
@@ -184,4 +188,128 @@ function room() {
   assert.ok(actors.includes('actor.model.group.visible = actor.alive'));
 }
 
-console.log('Milestone 3 state, combat, mining, and inventory tests passed');
+
+
+{
+  const state = new State(room());
+  assert.equal(state.players.red.armor, 'leather');
+  assert.equal(state.hurt('red', 4).damage, 4, 'Leather should preserve the accepted Wooden Sword baseline damage after rounding');
+  state.players.red.health = 20;
+  assert.equal(state.arm('red', 'iron'), true);
+  assert.equal(state.hurt('red', 4).damage, 3);
+  state.die('red');
+  state.respawn('red');
+  assert.equal(state.players.red.armor, 'iron', 'armor must persist through death');
+  assert.equal(state.arm('red', 'diamond'), true);
+  assert.equal(state.arm('red', 'iron'), false, 'armor must not downgrade');
+}
+
+{
+  const state = new State(room());
+  state.players.red.health = 10;
+  assert.equal(state.eat('red'), true);
+  assert.equal(state.eat('red'), false, 'Golden Apple regeneration must not stack');
+  assert.equal(state.tick(1.01), true);
+  assert.equal(state.players.red.health, 11);
+  state.tick(30);
+  assert.equal(state.players.red.regen, 0);
+  assert.equal(state.eat('red'), true, 'another Golden Apple may be eaten after regeneration ends');
+}
+
+{
+  const bags = new Bags(room());
+  const state = new State(room());
+  const economy = new Economy(bags, state);
+  const bag = bags.get('red');
+  bag.add('iron', 64);
+  bag.add('iron', 64);
+  bag.add('gold', 64);
+  bag.add('emerald', 32);
+  bag.add('diamond', 16);
+
+  assert.equal(economy.buy('red', 'wool').ok, true);
+  assert.equal(bag.count('wool'), 16);
+  assert.equal(economy.buy('red', 'wood').ok, true);
+  assert.equal(bag.count('wood'), 16);
+  assert.equal(economy.buy('red', 'end').ok, true);
+  assert.equal(bag.count('end'), 12);
+  assert.equal(economy.buy('red', 'obsidian').ok, true);
+  assert.equal(bag.count('obsidian'), 4);
+
+  for (const id of ['pickaxe', 'axe', 'shears']) assert.equal(economy.buy('red', id).ok, true);
+  assert.equal(economy.buy('red', 'pickaxe').code, 'owned');
+
+  assert.equal(economy.buy('red', 'swordiron').ok, true);
+  assert.equal(bag.count('swordwood'), 0);
+  assert.equal(bag.count('swordiron'), 1);
+  assert.equal(economy.buy('red', 'sworddiamond').ok, true);
+  assert.equal(bag.count('swordiron'), 0);
+  assert.equal(bag.count('sworddiamond'), 1);
+
+  assert.equal(economy.buy('red', 'ironarmor').ok, true);
+  assert.equal(state.players.red.armor, 'iron');
+  assert.equal(economy.buy('red', 'diamondarmor').ok, true);
+  assert.equal(state.players.red.armor, 'diamond');
+
+  for (const id of ['apple', 'tnt', 'fireball']) assert.equal(economy.buy('red', id).ok, true);
+  assert.equal(bag.count('apple'), 1);
+  assert.equal(bag.count('tnt'), 1);
+  assert.equal(bag.count('fireball'), 1);
+
+  assert.equal(economy.forge('red', 'forge2').code, 'order');
+  assert.equal(economy.forge('red', 'forge1').ok, true);
+  assert.equal(state.forge.red, 1);
+  assert.equal(economy.forge('red', 'forge2').ok, true);
+  assert.equal(state.forge.red, 2);
+  assert.equal(state.forge.blue, 0);
+
+  bags.death('red');
+  assert.equal(bag.count('pickaxe'), 1);
+  assert.equal(bag.count('axe'), 1);
+  assert.equal(bag.count('shears'), 1);
+  assert.equal(bag.count('sworddiamond'), 0);
+  assert.equal(bag.count('swordwood'), 1);
+  assert.equal(bag.count('apple'), 0);
+  assert.equal(bag.count('tnt'), 0);
+  assert.equal(bag.count('fireball'), 0);
+  assert.equal(state.players.red.armor, 'diamond');
+}
+
+{
+  const required = ['wool', 'wood', 'end', 'obsidian', 'swordwood', 'swordiron', 'sworddiamond', 'leather', 'ironarmor', 'diamondarmor', 'pickaxe', 'axe', 'shears', 'apple', 'tnt', 'fireball'];
+  for (const id of required) assert.ok(shop.item[id], `missing centralized Item Shop entry for ${id}`);
+  assert.deepEqual(Object.keys(shop.forge), ['forge1', 'forge2']);
+  const currencies = new Set(Object.values(shop.item).map(entry => entry.cost).filter(Boolean));
+  for (const id of ['iron', 'gold', 'emerald']) assert.equal(currencies.has(id), true);
+  assert.equal(Object.values(shop.forge).every(entry => entry.cost === 'diamond'), true);
+}
+
+{
+  const list = make({
+    red: { forge: { x: 0, y: 1, z: 0 } },
+    blue: { forge: { x: 10, y: 1, z: 0 } },
+    diamond: [{ x: 5, y: 1, z: -5 }],
+    emerald: [{ x: 5, y: 1, z: 5 }]
+  });
+  const gen = list.find(item => item.id === 'redforge');
+  gen.level(1);
+  assert.equal(gen.outputs.find(item => item.id === 'iron').every, 1.5);
+  assert.equal(gen.outputs.find(item => item.id === 'gold').every, 6);
+  gen.level(2);
+  assert.equal(gen.outputs.find(item => item.id === 'iron').every, 1);
+  assert.equal(gen.outputs.find(item => item.id === 'gold').every, 4);
+}
+
+{
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  const arena = readFileSync(new URL('./arena.js', import.meta.url), 'utf8');
+  assert.ok(html.includes('id="shop"'));
+  assert.ok(html.includes('id="shoptabs"'));
+  assert.ok(css.includes('backdrop-filter: blur(3px)'));
+  assert.ok(arena.includes("data.kind === 'buy'"));
+  assert.ok(arena.includes("data.kind === 'forge'"));
+  assert.ok(arena.includes("data.kind === 'eat'"));
+}
+
+console.log('Milestone 4 economy, shop, armor, forge, regeneration, and regression tests passed');

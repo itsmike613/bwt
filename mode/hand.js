@@ -8,6 +8,7 @@ function shape(def) {
   if (def.kind === 'block') return { color: def.id === 'obsidian' ? 0x2f253b : def.id === 'wood' ? 0x8b6a45 : 0xd1c7a0, scale: [0.32, 0.32, 0.32] };
   if (def.id === 'tnt') return { color: 0xc94e4e, scale: [0.32, 0.32, 0.32] };
   if (def.id === 'fireball') return { color: 0xff7a2f, scale: [0.25, 0.25, 0.25] };
+  if (def.id === 'apple') return { color: 0xf0c94b, scale: [0.24, 0.28, 0.24] };
   return { color: 0xc89472, scale: [0.18, 0.55, 0.18] };
 }
 

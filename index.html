@@ -57,7 +57,7 @@
   <div id="hud" hidden>
     <div id="cross"></div>
     <div id="beds"></div>
-    <div id="info"><span id="network">WebRTC 0/0 connected</span></div>
+    <div id="info"><span id="network">WebRTC 0/0 connected</span> · <span id="armor">Leather Armor</span><span id="regen" hidden> · Regen</span></div>
     <div id="notice" hidden></div>
     <div id="countdown" hidden></div>
     <div id="bottom">
@@ -72,7 +72,21 @@
         <p>Click one slot, then another to swap. Press E to close.</p>
       </section>
     </div>
-    <div id="hint">Click to capture mouse · WASD move · Space jump · Ctrl sprint · Shift crouch · LMB attack/break · RMB place/use · E inventory · 1–9 hotbar</div>
+    <div id="shop" hidden>
+      <section id="shopcard">
+        <header id="shophead">
+          <div>
+            <h2 id="shoptitle">Item Shop</h2>
+            <p id="shopmoney"></p>
+          </div>
+          <button id="shopclose" type="button">Close</button>
+        </header>
+        <nav id="shoptabs"></nav>
+        <div id="shopcards"></div>
+        <p id="shopnote" role="status"></p>
+      </section>
+    </div>
+    <div id="hint">Click to capture mouse · WASD move · Space jump · Ctrl sprint · Shift crouch · LMB attack/break · RMB place/use/shop · E inventory · 1–9 hotbar</div>
   </div>
   <script type="module" src="./mode/game.js"></script>
 </body>

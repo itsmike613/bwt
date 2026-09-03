@@ -138,9 +138,10 @@ class Skin {
   hold(kind = '') {
     this.tool.visible = Boolean(kind);
     if (!kind) return;
-    const color = kind === 'sword' ? 0xd8d8d8 : kind === 'pickaxe' ? 0xa9a9a9 : kind === 'axe' ? 0x9b744c : kind === 'shears' ? 0xc7c7c7 : kind === 'block' ? 0xd85b5b : 0xb8b8b8;
+    const color = kind === 'sword' ? 0xd8d8d8 : kind === 'pickaxe' ? 0xa9a9a9 : kind === 'axe' ? 0x9b744c : kind === 'shears' ? 0xc7c7c7 : kind === 'block' ? 0xd85b5b : kind === 'tnt' ? 0xc94e4e : kind === 'fireball' ? 0xff7a2f : kind === 'apple' ? 0xf0c94b : 0xb8b8b8;
     this.toolmat.color.setHex(color);
-    if (kind === 'block') this.tool.scale.set(2.6, 0.42, 2.6);
+    if (kind === 'block' || kind === 'tnt') this.tool.scale.set(2.6, 0.42, 2.6);
+    else if (kind === 'fireball' || kind === 'apple') this.tool.scale.set(2, 0.38, 2);
     else if (kind === 'shears') this.tool.scale.set(0.7, 0.65, 0.7);
     else this.tool.scale.set(1, 1, 1);
   }

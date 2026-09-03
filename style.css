@@ -420,3 +420,91 @@ button:disabled {
 .preview #inventory { display: none !important; }
 
 #cross.hit::before, #cross.hit::after { background: #ffd36a; }
+
+#shop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(0 0 0 / 46%);
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
+}
+
+#shopcard {
+  width: min(820px, 100%);
+  max-height: min(720px, calc(100% - 12px));
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #555;
+  border-radius: 9px;
+  background: rgb(38 38 38 / 95%);
+}
+
+#shophead {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+#shophead h2 { margin: 0; }
+#shopmoney { margin: 5px 0 12px; color: #c9c9c9; font-size: 12px; }
+#shopclose { min-width: 84px; }
+
+#shoptabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+#shoptabs button { min-height: 36px; padding: 7px; font-size: 12px; }
+#shoptabs button.active { border-color: #eee; background: #383838; }
+
+#shopcards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.shopitem {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 104px;
+  padding: 10px;
+  border: 1px solid #494949;
+  border-radius: 7px;
+  background: #1e1e1e;
+}
+
+.shopicon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid #5a5a5a;
+  border-radius: 6px;
+  background: #2b2b2b;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.shopitem strong { display: block; margin-bottom: 2px; }
+.shopprice { color: #f0d27a; font-size: 12px; font-weight: 700; }
+.shopitem p { margin: 5px 0 0; color: #bdbdbd; font-size: 12px; line-height: 1.3; }
+.shopitem button { min-width: 72px; }
+#shopnote { min-height: 18px; margin: 10px 0 0; color: #ffce70; font-size: 12px; }
+
+@media (max-width: 700px) {
+  #shopcards { grid-template-columns: 1fr; }
+  #shoptabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .shopitem { grid-template-columns: 44px minmax(0, 1fr); }
+  .shopicon { width: 42px; height: 42px; }
+  .shopitem button { grid-column: 1 / -1; }
+}
+
+.preview #shop { display: none !important; }

@@ -6,7 +6,7 @@ import { cast } from '../core/ray.js';
 import { read } from '../core/map.js';
 import { Inventory } from '../core/inventory.js';
 import { item } from '../data/item.js';
-import { combat, drops as dropcfg, fireball as ballcfg, health, send, tnt as tntcfg } from '../data/balance.js';
+import { combat, drops as dropcfg, fireball as ballcfg, health, send, shop as market, tnt as tntcfg } from '../data/balance.js';
 import { move as tune } from '../data/tune.js';
 import { State } from './state.js';
 import { make as generators } from './generator.js';
@@ -24,6 +24,8 @@ import { Fx } from './fx.js';
 import { time as minetime } from './mine.js';
 import { aim, damage, knock, reach, vector } from './fight.js';
 import { blocks as blastblocks, scale as blastscale } from './blast.js';
+import { Economy } from './economy.js';
+import { Shop } from './shop.js';
 
 function point(value) {
   return value && Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z);
@@ -37,9 +39,13 @@ function check(markers) {
     markers?.blue?.bed,
     markers?.red?.forge,
     markers?.blue?.forge,
+    markers?.red?.item,
+    markers?.blue?.item,
+    markers?.red?.island,
+    markers?.blue?.island,
     markers?.spectator
   ];
-  if (need.some(value => !point(value))) throw new Error('Map is missing required team, bed, forge, or spectator markers.');
+  if (need.some(value => !point(value))) throw new Error('Map is missing required team, bed, forge, shop, or spectator markers.');
   if (!Array.isArray(markers?.diamond) || !markers.diamond.length || markers.diamond.some(value => !point(value))) throw new Error('Map needs at least one Diamond generator marker.');
   if (!Array.isArray(markers?.emerald) || !markers.emerald.length || markers.emerald.some(value => !point(value))) throw new Error('Map needs at least one Emerald generator marker.');
 }
@@ -69,6 +75,7 @@ class Arena {
     this.inv = this.host ? this.bags.get(uid) : new Inventory();
     if (!this.host) this.inv.add('swordwood', 1);
     this.state = new State(room);
+    this.economy = this.host ? new Economy(this.bags, this.state) : null;
     this.gens = generators(this.markers);
     this.genmap = new Map(this.gens.map(gen => [gen.id, gen]));
     this.drops = new Drops(this.runtime.view.scene);
@@ -82,6 +89,10 @@ class Arena {
     this.fx = new Fx(this.runtime.view.scene);
     this.hud = new Hud(this.runtime.input);
     this.hud.bind(this.inv);
+    this.shop = new Shop(this.runtime.view.scene, this.runtime.input, this.markers, {
+      buy: id => this.local({ kind: 'buy', item: id }),
+      forge: id => this.local({ kind: 'forge', item: id })
+    });
     this.mode = 'live';
     this.clock = 0;
     this.peak = 0;
@@ -103,6 +114,7 @@ class Arena {
     this.beds.sync(this.state);
     this.actors.state(this.state);
     this.hud.draw(this.state, this.uid);
+    this.rates();
     this.runtime.tick = dt => this.tick(dt);
     this.runtime.frame = alpha => this.frame(alpha);
     this.runtime.start();
@@ -119,6 +131,7 @@ class Arena {
     this.minekey = '';
     this.hud.count(0);
     this.hud.say('');
+    this.shop?.close(false);
   }
 
   wait() {
@@ -128,6 +141,7 @@ class Arena {
     this.clock = health.respawn;
     this.pending = false;
     this.minekey = '';
+    this.shop?.close(false);
   }
 
   out() {
@@ -141,6 +155,7 @@ class Arena {
     this.minekey = '';
     this.hud.count(0);
     this.hud.say('Eliminated — spectator mode');
+    this.shop?.close(false);
   }
 
   sync(data) {
@@ -149,6 +164,8 @@ class Arena {
     this.beds.sync(this.state);
     this.actors.state(this.state);
     this.hud.draw(this.state, this.uid);
+    this.rates();
+    this.shop.draw(this.state, this.uid, this.inv);
     if (!after) return;
     if (after.out && this.mode !== 'out' && this.mode !== 'end') {
       this.out();
@@ -161,6 +178,7 @@ class Arena {
       this.mode = 'end';
       this.hud.count(0);
       this.hud.say(`${this.state.winner === 'red' ? 'Red' : 'Blue'} wins`);
+      this.shop.close(false);
       document.exitPointerLock?.();
     }
   }
@@ -183,7 +201,12 @@ class Arena {
           else if (data.action === 'reset') this.inv.load(data.data);
         }
         this.hud.draw(this.state, this.uid);
+        this.shop.draw(this.state, this.uid, this.inv);
       }
+      return;
+    }
+    if (data.kind === 'shop') {
+      this.shop.result(data);
       return;
     }
     if (data.kind === 'drop') {
@@ -268,6 +291,7 @@ class Arena {
       this.drops.load(data.drops);
       this.inv.load(data.bag ?? []);
       this.hud.draw(this.state, this.uid);
+      this.shop.draw(this.state, this.uid, this.inv);
       this.bombs.load(data.bombs);
       this.balls.load(data.balls);
       for (const gen of data.gens ?? []) {
@@ -315,7 +339,7 @@ class Arena {
     const player = this.state.players[uid];
     if (!player || player.dead || player.out || this.state.winner) return;
     if (data.kind === 'take') this.take(uid, data.id);
-    if (data.kind === 'hurt' && data.cause === 'fall') this.hurt(uid, Math.min(health.max, Math.max(0, Number(data.amount) || 0)), this.killer(uid));
+    if (data.kind === 'hurt' && data.cause === 'fall') this.hurt(uid, Math.min(health.max, Math.max(0, Number(data.amount) || 0)), this.killer(uid), false);
     if (data.kind === 'death' && data.cause === 'void') this.die(uid, this.killer(uid));
     if (data.kind === 'bed') this.bed(uid, data.team);
     if (data.kind === 'place') this.place(uid, data);
@@ -323,6 +347,58 @@ class Arena {
     if (data.kind === 'mine') this.dig(uid, data);
     if (data.kind === 'tnt') this.tnt(uid, data);
     if (data.kind === 'fire') this.fire(uid);
+    if (data.kind === 'eat') this.eat(uid);
+    if (data.kind === 'buy') this.buy(uid, data.item);
+    if (data.kind === 'forge') this.forge(uid, data.item);
+  }
+
+  store(uid, kind) {
+    const pos = this.spot(uid);
+    const team = this.state.teams[uid];
+    const mark = this.markers?.[team]?.[kind];
+    return Boolean(pos && mark && dist(pos, mark) <= market.reach);
+  }
+
+  bagsync(result) {
+    for (const data of result?.bag ?? []) this.emit({ kind: 'bag', ...data });
+  }
+
+  buy(uid, id) {
+    if (!this.store(uid, 'item')) {
+      this.emit({ kind: 'shop', uid, ok: false, code: 'range' });
+      return;
+    }
+    const result = this.economy.buy(uid, id);
+    this.bagsync(result);
+    if (result.state) this.emit({ kind: 'state', data: this.state.dump() });
+    this.emit({ kind: 'shop', uid, ok: result.ok, code: result.code ?? '' });
+  }
+
+  forge(uid, id) {
+    if (!this.store(uid, 'island')) {
+      this.emit({ kind: 'shop', uid, ok: false, code: 'range' });
+      return;
+    }
+    const result = this.economy.forge(uid, id);
+    this.bagsync(result);
+    if (result.state) this.emit({ kind: 'state', data: this.state.dump() });
+    this.emit({ kind: 'shop', uid, ok: result.ok, code: result.code ?? '' });
+  }
+
+  eat(uid) {
+    if (this.held(uid) !== 'apple' || !this.bags.has(uid, 'apple')) return;
+    if (!this.state.eat(uid)) return;
+    if (!this.bags.remove(uid, 'apple', 1)) return;
+    this.emit({ kind: 'bag', action: 'remove', uid, item: 'apple', count: 1 });
+    this.emit({ kind: 'state', data: this.state.dump() });
+  }
+
+  rates() {
+    for (const gen of this.gens) if (gen.team) gen.level(this.state.forge?.[gen.team] ?? 0);
+  }
+
+  menu() {
+    return this.hud.shown || this.shop.shown;
   }
 
   finish(uid, killer = null) {
@@ -342,8 +418,8 @@ class Arena {
     }
   }
 
-  hurt(uid, amount, killer = null) {
-    const result = this.state.hurt(uid, amount);
+  hurt(uid, amount, killer = null, guard = true) {
+    const result = this.state.hurt(uid, amount, guard);
     if (!result.ok) return;
     if (result.death) this.finish(uid, killer);
     this.emit({ kind: 'state', data: this.state.dump() });
@@ -612,6 +688,13 @@ class Arena {
     const hit = cast(this.runtime.world, camera, tune.reach);
 
     if (right) {
+      const store = this.shop.near(this.player.pos, this.team);
+      if (store) {
+        this.endmine();
+        if (this.hud.shown) this.hud.toggle();
+        this.shop.open(store, this.state, this.uid, this.inv);
+        return;
+      }
       const slot = this.inv.slot();
       const def = slot ? item(slot.id) : null;
       if (def?.kind === 'block' && hit) {
@@ -622,6 +705,8 @@ class Arena {
         if (pos) this.local({ kind: 'tnt', x: pos.x, y: pos.y, z: pos.z });
       } else if (def?.id === 'fireball') {
         this.local({ kind: 'fire' });
+      } else if (def?.id === 'apple') {
+        this.local({ kind: 'eat' });
       }
     }
 
@@ -660,7 +745,10 @@ class Arena {
   keys() {
     const input = this.runtime.input;
     for (let i = 0; i < 9; i++) if (input.press(`Digit${i + 1}`)) this.hud.select(i);
-    if (input.press('KeyE')) this.hud.toggle();
+    if (input.press('KeyE')) {
+      if (this.shop.shown) this.shop.close();
+      else this.hud.toggle();
+    }
   }
 
   fall(was) {
@@ -720,6 +808,7 @@ class Arena {
     this.timerset(dt);
     if (this.mode === 'end') return;
     if (this.host) {
+      if (this.state.tick(dt)) this.emit({ kind: 'state', data: this.state.dump() });
       for (const gen of this.gens) gen.tick(dt, (base, out) => this.gen(base, out));
       this.mining(dt);
       this.bombs.tick(dt, bomb => {
@@ -735,7 +824,7 @@ class Arena {
     }
 
     if (this.mode === 'out') {
-      if (!this.hud.shown) this.fly.tick(dt);
+      if (!this.menu()) this.fly.tick(dt);
       return;
     }
     if (this.mode === 'wait') {
@@ -743,7 +832,7 @@ class Arena {
       this.hud.count(Math.max(1, Math.ceil(this.clock)));
       return;
     }
-    if (this.hud.shown) {
+    if (this.menu()) {
       this.endmine();
       return;
     }
@@ -762,7 +851,7 @@ class Arena {
     this.stamp = now;
     if (this.mode !== 'out') this.player.frame(alpha);
     this.hand.hold(this.inv.slot()?.id ?? '');
-    this.hand.frame(dt, this.mode === 'live' && !this.hud.shown);
+    this.hand.frame(dt, this.mode === 'live' && !this.menu());
     this.actors.frame(dt);
     this.cracks.frame(dt);
     this.fx.frame(dt);
@@ -787,6 +876,7 @@ class Arena {
     this.bombs.close();
     this.balls.close();
     this.fx.close();
+    this.shop.closeall();
   }
 }
 

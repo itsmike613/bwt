@@ -2,13 +2,18 @@
 
 ## Current milestone
 
-Milestone 3 — Combat
+Milestone 4 — Economy — IMPLEMENTED IN THIS BUILD, LIVE VERIFICATION PENDING
 
 Milestone 1 is complete and accepted through the project owner's real two-browser Firebase/WebRTC test on September 3, 2026.
 
 Milestone 2 is complete and accepted through the project owner's real two-browser match test on September 3, 2026. That live test verified both players entering the same shared world, synchronized BedWars state, both beds being destroyable, and the win foundation producing `Blue wins` correctly.
 
-Before Milestone 3 work began, the remaining Milestone 2 remote-player visibility defect was fixed as described below.
+Milestone 3 is complete and accepted through the project owner's live browser test on September 3, 2026. That test verified both players joining the same world, consistent remote-player visibility, melee combat, damage, knockback, deaths/respawns, and working WebRTC.
+
+Known non-blocking polish issues intentionally deferred:
+
+- the current sword model is crude and belongs to Milestone 6 polish;
+- remote player head pitch does not yet follow looking up/down and remains deferred unless an earlier dependency appears.
 
 ## Milestone 1 — COMPLETE
 
@@ -56,14 +61,14 @@ Findings and changes:
 - Removed actors now dispose their model geometry/materials.
 - Remote actors remain visible while standing still as long as their BedWars state is living and at least one position snapshot has been received.
 
-The final visual result still requires the project owner's normal-browser verification because Node tests cannot prove WebGL rendering behavior.
+The later Milestone 3 live browser test confirmed that remote players are visible consistently after this fix.
 
-## Milestone 3 — IMPLEMENTED IN THIS BUILD, LIVE VERIFICATION PENDING
+## Milestone 3 — COMPLETE
 
 ### Melee combat
 
 - Wooden Sword is now the actual starting carried weapon for every player.
-- Iron Sword and Diamond Sword are registered for the later Milestone 4 shop economy.
+- Iron Sword and Diamond Sword use the same combat registry and are now acquired through the Milestone 4 Item Shop.
 - Host owns attack timing, team checks, range checks, basic aim validation, damage, death outcome, and knockback values.
 - Friendly players cannot be damaged by melee attacks.
 - Clients request attacks; clients do not authoritatively assign damage.
@@ -84,7 +89,7 @@ The final visual result still requires the project owner's normal-browser verifi
 - Wooden Sword is restored after death.
 - Only the victim's carried Diamonds and Emeralds are transferred to a credited killer.
 - Iron, Gold, blocks, TNT, Fireballs, and other normal consumables disappear on death.
-- Current armor persistence remains part of the Milestone 4 armor implementation and is not invented early here.
+- Armor persistence is now implemented in Milestone 4 match state and remains independent of carried inventory slots.
 
 ### Tools and timed breaking
 
@@ -113,7 +118,7 @@ The final visual result still requires the project owner's normal-browser verifi
 
 ### TNT
 
-- TNT is registered as a Milestone 3 utility item for later shop acquisition.
+- TNT remains the Milestone 3 explosion system and is now acquired through the Milestone 4 Item Shop.
 - Host-authoritative TNT placement validates selected ownership, placement coordinates, empty target space, and reach.
 - TNT has a visible flashing/pulsing fuse.
 - Fuse time, radius, player damage, knockback, and block power are centralized.
@@ -125,7 +130,7 @@ The final visual result still requires the project owner's normal-browser verifi
 
 ### Fireballs
 
-- Fireball is registered as a Milestone 3 utility item for later shop acquisition.
+- Fireball remains the Milestone 3 projectile system and is now acquired through the Milestone 4 Item Shop.
 - Host creates the projectile from the authoritative player's latest yaw/pitch and position.
 - Projectile speed, life, radius, damage, knockback, and block power are centralized.
 - Fireballs collide with world voxels and living player positions on the host.
@@ -137,23 +142,94 @@ The final visual result still requires the project owner's normal-browser verifi
 
 - Existing Firebase room/presence/signalling systems are unchanged.
 - Existing host-star WebRTC topology is unchanged.
-- Match additions use compact DataChannel state/action events: move, swing, hit, mine, inventory delta/reset, TNT, Fireball, and blast events.
+- Match additions use compact DataChannel state/action events: move, swing, hit, mine, inventory delta/reset, TNT, Fireball, blast, shop purchase, Forge upgrade, and Golden Apple use events.
 - Firebase is still not used for rendering-rate gameplay state.
 - No limb rotations, crack progress frames, projectile render frames, or generator countdown seconds are sent through Firebase.
 
-## Milestone 3 intentionally not implemented yet
+## Milestone 4 — IMPLEMENTED IN THIS BUILD, LIVE VERIFICATION PENDING
 
-The following remain later frozen milestones and were not pulled forward:
+### Item Shop
 
-- Item Shop and purchase prices — Milestone 4;
-- armor purchase/progression — Milestone 4;
-- Golden Apple regeneration — Milestone 4;
-- Island Shop and Forge I/II purchase flow — Milestone 4;
-- final multiplayer interpolation/reconnect/host-disconnect handling, chat, End Game/New Game, room cleanup, and match statistics — Milestone 5;
+- Added a marker-driven Item Shop using the existing Red/Blue `item` markers from the shared editor/map format.
+- Right-clicking while within configured reach of the player's own Item Shop opens the menu and releases pointer lock.
+- The menu is a simple card-based UI with a slight background blur/dim and no extra commercial-style animation.
+- Categories are exactly: Blocks, Weapons, Tools, Armor, Utility.
+- Cards show a placeholder item icon, item name, centralized price/resource, short description, and Buy button.
+- Wooden Sword and Leather Armor are shown as default equipment rather than paid purchases.
+- Host-authoritative purchases now cover:
+  - Wool;
+  - Wood;
+  - End Stone;
+  - Obsidian;
+  - Iron Sword;
+  - Diamond Sword;
+  - Pickaxe;
+  - Axe;
+  - Shears;
+  - Iron Armor;
+  - Diamond Armor;
+  - Golden Apple;
+  - TNT;
+  - Fireball.
+- Shop purchase requests travel over the existing DataChannels. The host validates player state, shop range, ownership/progression, inventory capacity, currency, and price before changing authoritative state.
+- Purchases continue to use inventory add/remove deltas so client-side slot rearrangement is not overwritten by routine shop changes.
+
+### Pricing and balance
+
+- `data/balance.js` now centralizes all Milestone 4 shop prices, purchase quantities, Forge prices, armor reduction values, Golden Apple regeneration values, and Forge level timing.
+- Iron, Gold, Emerald, and Diamond all retain their intended V1 economy roles. Diamonds are intentionally reserved for the Island Shop Forge upgrade path.
+- Current V1 prices are tuneable data rather than scattered gameplay literals.
+
+### Armor and swords
+
+- Every player begins with Leather Armor in synchronized match state.
+- Armor progression is exactly Leather → Iron → Diamond.
+- Iron/Diamond armor purchases upgrade the player's persistent match armor tier and cannot downgrade it.
+- Armor remains through death/respawn.
+- Armor mitigation is centralized; fall damage bypasses normal armor reduction so the existing fall behavior is preserved.
+- Sword progression is Wooden → Iron → Diamond.
+- Buying an upgraded sword removes the current sword and adds the new sword through authoritative inventory deltas.
+- Upgraded swords are still lost on death and Wooden Sword is restored on respawn.
+
+### Tools and death persistence
+
+- Pickaxe, Axe, and Shears are purchasable once and remain the only V1 tool versions.
+- Purchased tools persist through death through the existing inventory `persist` path.
+- Blocks, utilities, normal carried resources, and upgraded swords are still cleared on death according to `spec.md`.
+- Killer loot remains limited to the victim's carried Diamonds and Emeralds.
+
+### Golden Apples
+
+- Golden Apples are now registered as a purchasable Utility item.
+- Right-clicking while holding one requests host-authoritative consumption.
+- One Golden Apple starts approximately 30 seconds of faster regeneration using centralized timing/heal values.
+- A second Golden Apple cannot be eaten while regeneration remains active; effects do not stack.
+- The regeneration state is synchronized and is cleared by death.
+
+### Island Shop and Forge upgrades
+
+- Added a marker-driven Island Shop using the existing Red/Blue `island` markers.
+- The V1 Island Shop contains ONLY Forge I and Forge II.
+- Both upgrades cost Diamonds and must be purchased sequentially.
+- Forge upgrades are team-wide synchronized state and persist for the rest of the match.
+- Forge I changes the team forge to approximately 1 Iron every 1.5 seconds and improves Gold timing.
+- Forge II changes the team forge to approximately 1 Iron every 1 second and improves Gold timing again.
+- Both Iron and Gold continue to come from the same generic team Forge generator rather than separate generator engines.
+- Generator timing is updated locally from synchronized Forge level/state; countdown seconds are still not written to Firebase.
+
+### Shop presentation/performance
+
+- Added lightweight blocky Item Shop/Island Shop marker figures at the existing map markers so the interaction locations are visible in normal play.
+- The shop display adds only a few simple meshes/sprites and does not alter voxel collision, chunk meshing, the editor, or map geometry.
+- The public game remains `index.html`; no second game page or framework was introduced.
+
+## Milestone 4 intentionally does not begin Milestone 5
+
+The following remain frozen for later milestones and were not pulled forward:
+
+- final reconnect/interpolation/host-disconnect behavior, chat, End Game/New Game, room cleanup, and match statistics — Milestone 5;
 - full victory screen/New Game/Leave Room — Milestone 5;
-- final sounds, presentation, performance profiling, and Chromebook polish — Milestone 6.
-
-Because the economy belongs to Milestone 4, this build does not give free Pickaxes, Axes, Shears, upgraded swords, TNT, Fireballs, or defense blocks merely to expose them in normal gameplay. Their systems are implemented and regression-tested now; normal acquisition remains the specified Milestone 4 shop flow.
+- final sounds, presentation, sword-model improvement, performance profiling, and Chromebook polish — Milestone 6.
 
 ## Tests and verification
 
@@ -169,18 +245,20 @@ Automated tests currently pass:
   - Auth initialization static audit;
   - host-star WebRTC offer/answer/ICE/DataChannel behavior.
 - `node mode/test.js`
-  - Milestone 2 inventory/state/generator tests;
-  - death persistence/loss rules and Diamond/Emerald loot extraction;
-  - Bags starting equipment/reset behavior;
-  - sword/fist damage values;
-  - combat range/aim/knockback helper behavior;
-  - correct/wrong tool breaking time behavior and Obsidian-vs-End-Stone timing;
-  - explosion block filtering proving original-map protection and Obsidian resistance;
-  - static renderer audit checking alpha-cutout skin setup and yaw correction path.
+  - all earlier inventory/state/generator/combat/mining/explosion regressions;
+  - Leather/Iron/Diamond armor state, mitigation, no-downgrade behavior, and persistence through death;
+  - Golden Apple non-stacking regeneration and re-use after expiry;
+  - Item Shop purchases for all required blocks, tools, swords, armor, Golden Apple, TNT, and Fireball;
+  - centralized shop entries and correct currency roles;
+  - tool one-time ownership and death persistence;
+  - upgraded sword replacement/loss and Wooden Sword restoration;
+  - Forge I/Forge II sequential Diamond purchases and team-only level state;
+  - Forge I/II Iron and Gold interval changes;
+  - static shop UI/blur and Arena request-path checks.
 
-All project JavaScript passes `node --check`, `rules.json` parses as valid JSON, and `data/firebase.js` still contains the accepted permanent Firebase client configuration.
+All project JavaScript passes `node --check`; `rules.json` and `data/map.json` parse as valid JSON; and `data/firebase.js` still contains the accepted permanent Firebase client configuration.
 
-Mocked/static tests do not claim to prove real browser WebGL, pointer-lock, Firebase runtime, or WebRTC timing. The project owner's next two-browser test should specifically verify the remote visibility fix and the live Milestone 3 combat behavior available with the normal Wooden Sword.
+A headless Chromium smoke attempt in the build sandbox was not treated as proof because the app imports Three.js/Firebase modules from external CDNs and the sandbox load stalled on that external dependency path. Automated/static checks therefore do not claim to prove live pointer-lock, WebGL shop visuals, Firebase runtime, or two-browser DataChannel timing. The project owner's next live test should focus on Milestone 4 purchase/upgrade/use behavior while also confirming Milestones 1–3 remain intact.
 
 ## Performance / engineering notes
 
@@ -195,6 +273,9 @@ Mocked/static tests do not claim to prove real browser WebGL, pointer-lock, Fire
 - Resource drops remain instanced.
 - TNT/Fireball visuals are lightweight cuboid/sphere entities; no general-purpose physics or particle engine was introduced.
 - Explosion voxel scanning is bounded to each configured explosion radius and inspects only nearby voxel coordinates when an explosion actually occurs.
+- Shop purchases/upgrades are infrequent action events over the existing DataChannels; no shop polling or Firebase gameplay-rate writes were added.
+- Item/Island Shop world markers use only lightweight simple meshes/sprites.
+- Golden Apple regeneration and Forge progression reuse the existing match tick/state path rather than adding background timers per client.
 - Full network interpolation profiling and Chromebook profiling remain Milestones 5/6 as specified.
 
 ## Important implementation decisions
