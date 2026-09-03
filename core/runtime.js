@@ -13,11 +13,13 @@ class Runtime {
     this.mats = make();
     this.loop = new Loop();
     this.tick = null;
+    this.frame = null;
     this.loop.tick = dt => {
       this.tick?.(dt);
       this.input.clear();
     };
-    this.loop.draw = () => {
+    this.loop.draw = alpha => {
+      this.frame?.(alpha);
       this.sync();
       this.view.draw();
     };

@@ -29,19 +29,19 @@ function solid(world, area) {
   return false;
 }
 
-function support(world, player, x, z) {
+function support(world, player, x = player.pos.x, z = player.pos.z) {
   const area = box(player, x, player.pos.y - 0.08, z);
   area.max.y = player.pos.y + 0.02;
   return solid(world, area);
 }
 
 function axis(world, player, name, amount) {
-  if (!amount) return;
+  if (!amount) return false;
   const next = { x: player.pos.x, y: player.pos.y, z: player.pos.z };
   next[name] += amount;
   if (!solid(world, box(player, next.x, next.y, next.z))) {
     player.pos[name] = next[name];
-    return;
+    return false;
   }
 
   const dir = Math.sign(amount);
@@ -55,22 +55,23 @@ function axis(world, player, name, amount) {
     left -= Math.abs(step);
   }
   player.vel[name] = 0;
+  return true;
 }
 
 function move(world, player, dt) {
   let dx = player.vel.x * dt;
   let dz = player.vel.z * dt;
-  if (player.crouch && player.ground) {
-    if (!support(world, player, player.pos.x + dx, player.pos.z)) dx = 0;
-    if (!support(world, player, player.pos.x, player.pos.z + dz)) dz = 0;
-  }
 
-  axis(world, player, 'x', dx);
-  axis(world, player, 'z', dz);
+  if (player.crouch && player.ground && !player.flight && !support(world, player, player.pos.x + dx, player.pos.z)) dx = 0;
+  const x = axis(world, player, 'x', dx);
 
-  const before = player.vel.y;
-  axis(world, player, 'y', player.vel.y * dt);
-  player.ground = before <= 0 && player.vel.y === 0 && solid(world, box(player, player.pos.x, player.pos.y - 0.03, player.pos.z));
+  if (player.crouch && player.ground && !player.flight && !support(world, player, player.pos.x, player.pos.z + dz)) dz = 0;
+  const z = axis(world, player, 'z', dz);
+
+  const falling = player.vel.y <= 0;
+  const y = axis(world, player, 'y', player.vel.y * dt);
+  player.ground = (falling && y) || support(world, player);
+  return { x, y, z };
 }
 
-export { box, move, solid };
+export { box, move, solid, support };

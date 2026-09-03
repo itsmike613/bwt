@@ -63,6 +63,7 @@ async function play(data) {
     if (runtime.input.click(0)) build.break(hit, false);
     if (runtime.input.click(2)) build.place(hit, selected, player, 2);
   };
+  runtime.frame = alpha => player.frame(alpha);
   runtime.start();
 }
 

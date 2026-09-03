@@ -1,5 +1,5 @@
 import { Runtime } from '../core/runtime.js';
-import { Fly } from '../core/fly.js';
+import { Player } from '../core/player.js';
 import { Build } from '../core/build.js';
 import { cast } from '../core/ray.js';
 import { all } from '../core/block.js';
@@ -15,12 +15,13 @@ const load = document.querySelector('#load');
 const clear = document.querySelector('#clear');
 const mode = document.querySelector('#mode');
 const runtime = new Runtime(stage);
-const fly = new Fly(runtime.input, runtime.view.camera);
+const player = new Player(runtime.world, runtime.input, runtime.view.camera, true);
 const build = new Build(runtime.world);
 const mark = new Mark(runtime.view.scene);
 let selected = { type: 'block', id: 1, name: 'Stone' };
 
 runtime.world.set(0, 0, 0, 1, 1);
+player.spawn(0.5, 1.001, 0.5);
 
 function active(button) {
   for (const node of document.querySelectorAll('#palette button, #markers button')) node.classList.remove('active');
@@ -51,13 +52,13 @@ for (const def of defs) {
 }
 
 runtime.tick = dt => {
-  fly.tick(dt);
+  player.tick(dt);
   if (!runtime.input.locked) return;
   const hit = cast(runtime.world, runtime.view.camera, tune.reach);
   if (runtime.input.click(0)) build.break(hit, true);
   if (runtime.input.click(2) && hit) {
     if (selected.type === 'block') {
-      build.place(hit, selected.id, null, 1);
+      build.place(hit, selected.id, player, 1);
     } else {
       mark.set(selected.id, {
         x: hit.x + hit.face.x,
@@ -67,6 +68,8 @@ runtime.tick = dt => {
     }
   }
 };
+
+runtime.frame = alpha => player.frame(alpha);
 
 clear.addEventListener('click', () => {
   if (selected.type !== 'marker') return;
@@ -91,6 +94,8 @@ load.addEventListener('change', async () => {
     const data = JSON.parse(await file.text());
     const marks = read(runtime.world, data);
     mark.load(marks);
+    player.spawn(0.5, 1.001, 0.5);
+    player.flight = false;
   } catch (cause) {
     alert(cause instanceof Error ? cause.message : 'Could not load map.');
   } finally {

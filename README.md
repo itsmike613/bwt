@@ -18,3 +18,15 @@ Then open:
 ## Hosting
 
 The client is static and uses relative project paths so it can be hosted from a GitHub Pages repository subpath. Three.js is pinned in the page import maps. Firebase is intentionally not configured in the first foundation slice.
+
+## Editor movement
+
+The editor starts in normal collision-based movement. Double-tap Space to toggle creative flight. While flying, Space rises and Shift descends; flight still collides with blocks.
+
+## Foundation tests
+
+Run the shared core/controller tests with:
+
+```sh
+node core/test.js
+```

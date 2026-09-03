@@ -1,3 +1,8 @@
+const blocked = new Set([
+  'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space',
+  'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight'
+]);
+
 class Input {
   constructor(node) {
     this.node = node;
@@ -7,9 +12,11 @@ class Input {
     this.clicks = new Set();
     this.x = 0;
     this.y = 0;
+    this.move = { x: 0, y: 0 };
     this.locked = false;
 
     addEventListener('keydown', event => {
+      if (this.locked && blocked.has(event.code)) event.preventDefault();
       if (!this.keys.has(event.code)) this.down.add(event.code);
       this.keys.add(event.code);
     });
@@ -24,10 +31,11 @@ class Input {
       this.x += event.movementX;
       this.y += event.movementY;
     });
+    addEventListener('blur', () => this.reset());
     addEventListener('contextmenu', event => event.preventDefault());
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.node;
-      if (!this.locked) this.buttons.clear();
+      if (!this.locked) this.reset();
     });
     node.addEventListener('click', () => {
       if (!this.locked) node.requestPointerLock();
@@ -47,15 +55,25 @@ class Input {
   }
 
   mouse() {
-    const move = { x: this.x, y: this.y };
+    this.move.x = this.x;
+    this.move.y = this.y;
     this.x = 0;
     this.y = 0;
-    return move;
+    return this.move;
   }
 
   clear() {
     this.down.clear();
     this.clicks.clear();
+  }
+
+  reset() {
+    this.keys.clear();
+    this.down.clear();
+    this.buttons.clear();
+    this.clicks.clear();
+    this.x = 0;
+    this.y = 0;
   }
 }
 
