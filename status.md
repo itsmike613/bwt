@@ -4,9 +4,9 @@
 
 Milestone 1 — Foundation
 
-Current slice: final shared movement/controller and core-quality pass before Firebase.
+Current slice: Firebase/auth/rooms/lobby/skins and initial WebRTC signalling architecture.
 
-Firebase/rooms are intentionally paused until this foundation is accepted.
+Milestone 1 implementation is now complete in code. Live Firebase Console configuration and multi-browser verification still require the project owner's Firebase project before Milestone 2 begins.
 
 ## Milestone 1 internal implementation order
 
@@ -53,6 +53,24 @@ Firebase/rooms are intentionally paused until this foundation is accepted.
 - Simple `index.html` landing shell with username, skin, invite, Create, and Join controls.
 - Skin registry foundation with local placeholder choices.
 - Game-mode shared-core preview path (`index.html?preview=1`) using the same runtime, map loader, physics, raycast, placement, and protected-block rules as the editor.
+- Firebase browser-module configuration isolated in `data/firebase.js` and initialized only through `net/firebase.js`.
+- Firebase setup guide in `firebase.md` and Milestone 1 RTDB rules in `rules.json`.
+- Firebase modular browser SDK pinned to 12.18.0 for Authentication and Realtime Database without adding a bundler/framework.
+- Anonymous Authentication through `net/auth.js`, using session persistence so separate testing windows can hold separate anonymous users while a tab refresh can retain its session.
+- Atomic invite-code room claiming with an RTDB transaction at the room path; the creator becomes the initial host.
+- Atomic room joining with transaction-based 10-player capacity checks and explicit not-found/full/already-started results.
+- Landing validation now uses small field/action inline red errors only; normal validation does not use an error page or modal.
+- Firebase presence through `.info/connected` and `onDisconnect`, with disconnect removal queued before the player is refreshed online.
+- Lobby room listener with simple synchronized username/player cards.
+- Lobby host ownership and deterministic promotion of a remaining player if the host disappears while the room is still in lobby state.
+- Host team cycling in the required order: Unassigned → Red → Blue → Unassigned, with the 5-player team cap enforced.
+- Host Randomize uses a shuffled player order and assigns Red/Blue as evenly as possible.
+- Start validation enforces at least 2 players, every player assigned, both teams populated, and no team over 5 players. The same validation is repeated inside the host Start transaction.
+- Three legally original local 64×64 placeholder skins are stored under `asset/skin/` and synchronized by skin ID in each Firebase player record.
+- `core/skin.js` provides a Minecraft-compatible 64×64 cuboid player renderer for head/torso/arms/legs, including the standard outer hat/jacket/sleeve/pants layers, plus pixelated lobby face previews.
+- Initial WebRTC architecture is split between `net/peer.js` and `net/signal.js`: the match host owns one ordered DataChannel to each other player, while a separate top-level RTDB signalling path carries only offer/answer/ICE messages.
+- Signalling messages are removed after handling; no rendering-rate coordinates or animation frames are written to Firebase.
+- After a valid Start, the UI stays inside a Milestone 1 connection placeholder and reports DataChannel progress rather than starting unsynchronized Milestone 2 gameplay.
 
 ## Movement/controller repair completed
 
@@ -138,22 +156,40 @@ Intentionally deferred after inspection:
 - `cast()` still creates short-lived Three.js/vector/result objects when it is called. It is now interaction-driven in the current foundation. If continuous target highlighting/breaking later requires per-frame casting, reuse scratch vectors/results then rather than prematurely complicating it now.
 - Real draw-call, GPU, and memory profiling on modest Chromebooks remains a Milestone 6 requirement and cannot be replaced by Node-only regression tests.
 
-## Unfinished Milestone 1 work
+## Firebase/lobby/network tests
 
-- Firebase project configuration.
-- Anonymous Authentication.
-- Atomic invite-code room creation.
-- Room joining and full/not-found validation.
-- Firebase presence.
-- Lobby player cards.
-- Host controls and team cycling.
-- Team randomization and Start validation.
-- Cuboid player skin renderer using Minecraft-compatible 64×64 skins.
-- Initial WebRTC signalling and realtime connection architecture.
+`node net/test.js` currently passes tests covering:
+
+- missing/invalid landing fields and invite-code normalization;
+- atomic room-claim logic and duplicate invite-code rejection;
+- room-not-found and 10-player capacity behavior;
+- same-UID refresh without consuming another player slot;
+- required team-cycle order and 5-player team cap;
+- even and odd Randomize results;
+- Start validation for assignment/team population;
+- deterministic lobby host promotion after host loss;
+- host-star WebRTC topology creation;
+- one offer per non-host peer;
+- early ICE queuing until a remote description exists;
+- client answer signalling;
+- DataChannel connection counting and host broadcast;
+- departed-peer cleanup and signalling teardown.
+
+Additional build checks verify every local placeholder skin is exactly 64×64, `rules.json` is valid JSON, all JavaScript passes `node --check`, and the required landing/lobby DOM IDs exist. Live Firebase Rules semantics and real browser DataChannel negotiation still require the project owner's Firebase project and browsers.
+
+## Milestone 1 verification remaining
+
+- Fill `data/firebase.js` with the project's real Firebase Web configuration.
+- Enable Anonymous Authentication and Realtime Database in the Firebase Console, then publish `rules.json` as described in `firebase.md`.
+- Perform live two-browser/device validation against the owner's Firebase project for create/join/presence/host promotion and the initial WebRTC handshake.
+- Do not begin Milestone 2 until that live integration test is accepted.
 
 ## Known problems / intentional limits
 
-- This slice has no Firebase configuration yet; Create/Join still show a small inline setup message rather than pretending rooms work.
+- `data/firebase.js` intentionally ships with blank configuration values because the real Firebase project belongs to the project owner. Until those values are filled, Create/Join show a small inline configuration error.
+- Milestone 1 `rules.json` validates authenticated room shape, invite format, player shape, team values, and the 10-player cap, but it is not the final hostile-client security model. Full Firebase Rules/security hardening remains explicitly scheduled for Milestone 5.
+- Presence reconnect during an already-started match and host-disconnect match recovery remain Milestone 5 behavior; this milestone only establishes lobby presence and the initial signalling topology.
+- The post-Start screen is intentionally a connection-status placeholder. Milestone 2 gameplay systems are not implemented or faked.
 - Editor marker visuals are temporary wire boxes, deliberately separate from map block data.
 - Editor block breaking is immediate. Timed break hardness and crack overlays belong to the later combat refinement milestone, while the provenance/protection foundation is already in place.
 - Movement values are centralized and can still be tuned during later polish, but the controller architecture, held/buffered jumping, raised-block support, and requested movement/flight behaviors are now implemented and covered by automated tests.
@@ -175,3 +211,9 @@ Intentionally deferred after inspection:
 - Camera-relative horizontal direction is centralized in `core/motion.js`.
 - Fixed-step physics remains at 60 Hz while mouse look and camera presentation update on render frames.
 - Balance/gameplay constants live in centralized data modules as systems are introduced; movement tuning lives in `data/tune.js`.
+- Firebase initialization/auth/room presence, lobby DOM, skin rendering, WebRTC peer state, and RTDB signalling transport are separate modules rather than one room/game file.
+- Room/team/start decisions are implemented as pure functions in `data/room.js`; Firebase transactions in `net/room.js` reuse them so logic can be regression-tested without a live project.
+- Invite codes normalize to uppercase and accept 2–20 letters, numbers, or hyphens.
+- Realtime room creation/join capacity uses RTDB transactions because concurrent clients must not claim the same code or exceed the 10-player cap.
+- Lobby host promotion is intentionally limited to lobby state in Milestone 1; active-match host disconnect behavior remains the specified Milestone 5 flow.
+- WebRTC uses a host-centered star topology. Clients send later gameplay inputs/actions to the host; authoritative snapshots/events can return over the same DataChannels without pushing gameplay-rate state through RTDB.

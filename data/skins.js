@@ -1,7 +1,11 @@
 const skins = [
-  { id: 'plain', name: 'Plain' },
-  { id: 'red', name: 'Red' },
-  { id: 'blue', name: 'Blue' }
+  { id: 'plain', name: 'Plain', file: './asset/skin/plain.png' },
+  { id: 'red', name: 'Red', file: './asset/skin/red.png' },
+  { id: 'blue', name: 'Blue', file: './asset/skin/blue.png' }
 ];
 
-export { skins };
+function skin(id) {
+  return skins.find(item => item.id === id) ?? skins[0];
+}
+
+export { skin, skins };

@@ -1,84 +1,142 @@
 import { skins } from '../data/skins.js';
-import { Runtime } from '../core/runtime.js';
-import { Player } from '../core/player.js';
-import { Build } from '../core/build.js';
-import { cast } from '../core/ray.js';
-import { read } from '../core/map.js';
-import { move as tune } from '../data/tune.js';
+import { players } from '../data/room.js';
+import { boot } from '../net/firebase.js';
+import { signin } from '../net/auth.js';
+import { claim, cycle, elect, join, random, start, watch } from '../net/room.js';
+import { Presence } from '../net/presence.js';
+import { Peer } from '../net/peer.js';
+import { Signal } from '../net/signal.js';
+import { Landing } from './landing.js';
+import { Lobby } from './lobby.js';
+import { Match } from './match.js';
+import { play } from './preview.js';
 
-const skin = document.querySelector('#skin');
-const user = document.querySelector('#username');
-const invite = document.querySelector('#invite');
-const error = document.querySelector('#error');
-const create = document.querySelector('#create');
-const join = document.querySelector('#join');
-const landing = document.querySelector('#landing');
-const stage = document.querySelector('#stage');
-const hud = document.querySelector('#hud');
+const state = {
+  db: null,
+  uid: '',
+  code: '',
+  profile: null,
+  room: null,
+  stop: null,
+  presence: null,
+  peer: null
+};
 
-for (const item of skins) {
-  const option = document.createElement('option');
-  option.value = item.id;
-  option.textContent = item.name;
-  skin.append(option);
+const match = new Match();
+const lobby = new Lobby({
+  cycle: uid => assign(uid),
+  random: () => mix(),
+  start: () => begin()
+});
+const landing = new Landing(skins, {
+  create: data => enter('create', data),
+  join: data => enter('join', data)
+});
+
+function clean() {
+  state.stop?.();
+  state.stop = null;
+  state.presence?.close();
+  state.presence = null;
+  state.peer?.close();
+  state.peer = null;
+  state.room = null;
 }
 
-function check() {
-  error.textContent = '';
-  if (!user.value.trim()) {
-    error.textContent = 'Enter a username.';
-    return false;
+function fail(error) {
+  const code = error?.code?.replace?.('auth/', '') ?? error?.code;
+  if (code === 'config') landing.fail('config');
+  else landing.fail(code);
+}
+
+async function enter(kind, data) {
+  try {
+    const user = await signin();
+    const { db } = boot();
+    const profile = { uid: user.uid, name: data.name, skin: data.skin };
+    const result = kind === 'create' ? await claim(db, data.code, profile) : await join(db, data.code, profile);
+    if (!result.ok) {
+      landing.fail(result.code);
+      return;
+    }
+    clean();
+    state.db = db;
+    state.uid = user.uid;
+    state.code = data.code;
+    state.profile = profile;
+    landing.hide();
+    open();
+  } catch (error) {
+    fail(error);
   }
-  if (!invite.value.trim()) {
-    error.textContent = 'Enter an invite code.';
-    return false;
+}
+
+function open() {
+  state.stop = watch(state.db, state.code, room => update(room), error => fail(error));
+  state.presence = new Presence(
+    state.db,
+    state.code,
+    state.uid,
+    () => join(state.db, state.code, state.profile),
+    error => fail(error)
+  );
+  state.presence.open();
+}
+
+function update(room) {
+  if (!room) {
+    clean();
+    lobby.hide();
+    match.close();
+    landing.show();
+    landing.error({ action: 'The room is no longer available.' });
+    return;
   }
-  return true;
+  state.room = room;
+  if (room.state === 'lobby' && !room.players?.[room.host]) elect(state.db, state.code).catch(() => {});
+
+  if (room.state === 'lobby') {
+    state.peer?.close();
+    state.peer = null;
+    match.close();
+    lobby.draw(room, state.uid, state.code);
+    return;
+  }
+
+  lobby.hide();
+  match.open(state.code);
+  if (!state.peer) {
+    const signal = new Signal(state.db, state.code, state.uid);
+    state.peer = new Peer(signal, state.uid, room.host, {
+      change: (open, total) => match.network(open, total, state.uid === room.host)
+    });
+    state.peer.open(players(room));
+  } else {
+    state.peer.sync(players(room));
+  }
 }
 
-function setup() {
-  if (!check()) return;
-  error.textContent = 'Firebase rooms are the next Milestone 1 integration step; this foundation does not fake room creation.';
+async function assign(uid) {
+  if (!state.room || state.room.host !== state.uid) return;
+  const result = await cycle(state.db, state.code, uid, state.uid);
+  if (!result.ok) lobby.fail(result.code);
 }
 
-async function play(data) {
-  landing.hidden = true;
-  stage.hidden = false;
-  hud.hidden = false;
-  const runtime = new Runtime(stage);
-  read(runtime.world, data);
-  const player = new Player(runtime.world, runtime.input, runtime.view.camera);
-  const build = new Build(runtime.world);
-  player.spawn(0.5, 1.01, 0.5);
-  let selected = 2;
-
-  runtime.tick = dt => {
-    if (runtime.input.press('Digit1')) selected = 2;
-    if (runtime.input.press('Digit2')) selected = 3;
-    if (runtime.input.press('Digit3')) selected = 4;
-    if (runtime.input.press('Digit4')) selected = 5;
-    player.tick(dt);
-    if (!runtime.input.locked) return;
-    const left = runtime.input.click(0);
-    const right = runtime.input.click(2);
-    if (!left && !right) return;
-    const hit = cast(runtime.world, runtime.view.camera, tune.reach);
-    if (left) build.break(hit, false);
-    if (right) build.place(hit, selected, player, 2);
-  };
-  runtime.frame = alpha => player.frame(alpha);
-  runtime.start();
+async function mix() {
+  if (!state.room || state.room.host !== state.uid) return;
+  const result = await random(state.db, state.code, state.uid);
+  if (!result.ok) lobby.fail(result.code);
 }
 
-create.addEventListener('click', setup);
-join.addEventListener('click', setup);
+async function begin() {
+  if (!state.room || state.room.host !== state.uid) return;
+  const result = await start(state.db, state.code, state.uid);
+  if (!result.ok) lobby.fail(result.code);
+}
 
 const query = new URLSearchParams(location.search);
 if (query.get('preview') === '1') {
-  fetch('./data/map.json')
-    .then(response => response.json())
-    .then(play)
-    .catch(() => { error.textContent = 'Could not load the local preview map.'; });
+  play().catch(() => landing.error({ action: 'Could not load the local preview map.' }));
 }
 
-export { play };
+export { state };

@@ -18,17 +18,42 @@
     <section id="card">
       <h1>BedWars</h1>
       <div id="form">
-        <label>Username<input id="username" maxlength="16" autocomplete="off"></label>
-        <label>Skin<select id="skin"></select></label>
-        <label>Invite code<input id="invite" maxlength="20" autocomplete="off"></label>
+        <label>Username<input id="username" maxlength="16" autocomplete="off"><span id="usererror" class="error"></span></label>
+        <label>Skin<select id="skin"></select><span id="skinerror" class="error"></span></label>
+        <label>Invite code<input id="invite" maxlength="20" autocomplete="off"><span id="inviteerror" class="error"></span></label>
         <div id="actions">
           <button id="create" type="button">Create</button>
           <button id="join" type="button">Join</button>
         </div>
-        <p id="error" role="alert"></p>
+        <p id="actionerror" class="error" role="alert"></p>
       </div>
     </section>
   </main>
+
+  <main id="lobby" hidden>
+    <section id="lobbycard">
+      <header id="lobbyhead">
+        <div><span>Room</span><strong id="roomcode"></strong></div>
+        <p id="hostnote"></p>
+      </header>
+      <div id="players"></div>
+      <p id="lobbyerror" class="error" role="alert"></p>
+      <div id="lobbyactions">
+        <button id="random" type="button">Randomize</button>
+        <button id="start" type="button">Start</button>
+      </div>
+    </section>
+  </main>
+
+  <main id="match" hidden>
+    <section id="matchcard">
+      <h1>BedWars</h1>
+      <p>Room <strong id="matchcode"></strong> passed Milestone 1 lobby validation.</p>
+      <p id="network">Establishing host connection…</p>
+      <p class="muted">Milestone 2 gameplay is intentionally not started in this build.</p>
+    </section>
+  </main>
+
   <div id="stage" hidden></div>
   <div id="hud" hidden>
     <div id="cross"></div>
