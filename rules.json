@@ -5,22 +5,22 @@
     "rooms": {
       "$code": {
         ".read": "auth !== null",
-        ".write": "auth !== null && $code.matches(/^[A-Z0-9-]{2,20}$/)",
-        ".validate": "!newData.exists() || (newData.hasChildren(['host','state','players']) && newData.child('host').isString() && newData.child('state').isString() && (newData.child('state').val() === 'lobby' || newData.child('state').val() === 'match'))",
+        ".write": "auth !== null && ((!data.exists() && newData.child('host').val() === auth.uid && newData.child('players').child(auth.uid).exists()) || data.child('players').child(auth.uid).exists() || (data.child('state').val() === 'lobby' && !data.child('players').child(auth.uid).exists() && newData.child('players').child(auth.uid).exists()))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['host','state','players']) && newData.child('host').isString() && newData.child('state').isString() && (newData.child('state').val() === 'lobby' || newData.child('state').val() === 'match') && (!data.exists() || newData.child('created').val() === data.child('created').val()) && (!data.exists() || newData.child('alone').val() === data.child('alone').val()) && (!data.exists() || newData.child('host').val() === data.child('host').val() || auth.uid === data.child('host').val() || ((!data.child('players').child(data.child('host').val()).exists() || data.child('players').child(data.child('host').val()).child('online').val() === false) && newData.child('players').child(newData.child('host').val()).child('online').val() !== false)) && (!data.exists() || newData.child('state').val() === data.child('state').val() || auth.uid === data.child('host').val() || (data.child('state').val() === 'match' && newData.child('state').val() === 'lobby' && (!data.child('players').child(data.child('host').val()).exists() || data.child('players').child(data.child('host').val()).child('online').val() === false))) && (!data.exists() || newData.child('started').val() === data.child('started').val() || auth.uid === data.child('host').val() || (data.child('state').val() === 'match' && newData.child('state').val() === 'lobby' && (!data.child('players').child(data.child('host').val()).exists() || data.child('players').child(data.child('host').val()).child('online').val() === false))))",
         "players": {
           "$uid": {
-            ".validate": "newData.hasChildren(['uid','name','skin','team','joined']) && newData.child('uid').val() === $uid && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 16 && newData.child('skin').isString() && newData.child('team').isString() && (newData.child('team').val() === 'none' || newData.child('team').val() === 'red' || newData.child('team').val() === 'blue')"
+            ".validate": "!newData.exists() ? (auth.uid === $uid || auth.uid === data.parent().parent().child('host').val()) : (newData.hasChildren(['uid','name','skin','team','joined','online']) && newData.child('uid').val() === $uid && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 16 && newData.child('skin').isString() && newData.child('team').isString() && (newData.child('team').val() === 'none' || newData.child('team').val() === 'red' || newData.child('team').val() === 'blue') && newData.child('online').isBoolean() && (!data.exists() ? auth.uid === $uid : (auth.uid === $uid || auth.uid === data.parent().parent().child('host').val() || newData.val() === data.val())))"
           }
         }
       }
     },
     "signal": {
       "$code": {
-        ".read": "auth !== null",
         "$uid": {
-          ".write": "auth !== null",
+          ".read": "auth !== null && auth.uid === $uid",
           "$item": {
-            ".validate": "newData.hasChildren(['from','kind','data']) && newData.child('from').isString() && newData.child('kind').isString()"
+            ".write": "auth !== null && (auth.uid === $uid || (newData.exists() && newData.child('from').val() === auth.uid && root.child('rooms').child($code).child('players').child(auth.uid).exists() && root.child('rooms').child($code).child('players').child($uid).exists()))",
+            ".validate": "!newData.exists() || (newData.hasChildren(['from','kind','data']) && newData.child('from').isString() && newData.child('kind').isString())"
           }
         }
       }

@@ -28,7 +28,7 @@ class Actors {
   sync(room) {
     const live = new Set();
     for (const player of Object.values(room?.players ?? {})) {
-      if (player.uid === this.uid) continue;
+      if (player.uid === this.uid || player.online === false) continue;
       live.add(player.uid);
       if (this.items.has(player.uid)) continue;
       const model = new Skin(find(player.skin).file);

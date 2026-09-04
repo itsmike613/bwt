@@ -508,3 +508,103 @@ button:disabled {
 }
 
 .preview #shop { display: none !important; }
+
+#endgame {
+  position: absolute;
+  right: 14px;
+  top: 52px;
+  min-height: 32px;
+  padding: 5px 9px;
+  pointer-events: auto;
+  background: rgb(35 35 35 / 78%);
+  font-size: 12px;
+}
+
+#chat {
+  position: absolute;
+  left: 14px;
+  bottom: 150px;
+  width: min(460px, calc(100% - 28px));
+  pointer-events: none;
+}
+
+#chatlist {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+
+.chatline {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 52%);
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  text-shadow: 0 1px 2px #000;
+}
+
+.chatline.red { border-left: 3px solid #d05b5b; }
+.chatline.blue { border-left: 3px solid #6389d5; }
+.chatline.shout { border-left: 3px solid #e1c65a; font-weight: 700; }
+
+#chatform { pointer-events: auto; }
+#chatinput {
+  width: 100%;
+  min-height: 36px;
+  background: rgb(16 16 16 / 92%);
+}
+
+#victory,
+#modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 58%);
+  pointer-events: auto;
+}
+
+#victory { z-index: 8; backdrop-filter: blur(3px); }
+#modal { z-index: 12; }
+
+#victorycard,
+#modalcard {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #474747;
+  border-radius: 10px;
+  background: #222;
+}
+
+#victorycard h2,
+#modalcard h2 { margin-top: 0; }
+
+#victorybody { display: grid; gap: 6px; }
+.victoryrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px 150px;
+  gap: 10px;
+  padding: 8px 9px;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  background: #191919;
+  font-size: 13px;
+}
+.victoryrow.red { border-left: 4px solid #c94e4e; }
+.victoryrow.blue { border-left: 4px solid #4f79cc; }
+#victorysummary { margin-top: 14px; font-size: 13px; }
+#victorysummary p { margin: 5px 0; }
+#victoryactions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+#modalcard { width: min(420px, 100%); }
+#modaltext { color: #d0d0d0; }
+#modalclose { width: 100%; }
+
+@media (max-width: 520px) {
+  .victoryrow { grid-template-columns: 1fr auto; }
+  .victoryrow span:last-child { grid-column: 1 / -1; }
+}

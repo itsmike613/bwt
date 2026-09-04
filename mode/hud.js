@@ -55,13 +55,25 @@ class Hud {
   }
 
   toggle() {
-    this.shown = !this.shown;
-    this.inventory.hidden = !this.shown;
+    if (this.shown) {
+      this.close();
+      return false;
+    }
+    this.shown = true;
+    this.inventory.hidden = false;
     this.hold = null;
-    if (this.shown) document.exitPointerLock?.();
-    else this.input.node.requestPointerLock?.();
+    document.exitPointerLock?.();
     this.draw();
-    return this.shown;
+    return true;
+  }
+
+  close(capture = true) {
+    if (!this.shown) return;
+    this.shown = false;
+    this.inventory.hidden = true;
+    this.hold = null;
+    if (capture) this.input.node.requestPointerLock?.();
+    this.draw();
   }
 
   select(index) {

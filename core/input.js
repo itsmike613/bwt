@@ -1,6 +1,7 @@
 const blocked = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space',
-  'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight'
+  'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
+  'KeyT', 'Slash'
 ]);
 
 class Input {

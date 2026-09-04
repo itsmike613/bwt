@@ -11,6 +11,8 @@ import {
   cycle as rotate,
   elect as promote,
   member,
+  recover as rescue,
+  reset as restart,
   random as mix,
   valid
 } from '../data/room.js';
@@ -123,6 +125,26 @@ async function elect(db, code) {
   return { ok: result.committed, room: result.snapshot.val() };
 }
 
+async function recover(db, code) {
+  const target = ref(db, `rooms/${code}`);
+  const result = await runTransaction(target, current => {
+    const check = rescue(current);
+    return check.ok ? check.room : undefined;
+  }, { applyLocally: false });
+  return { ok: result.committed, room: result.snapshot.val() };
+}
+
+async function reset(db, code, host) {
+  const target = ref(db, `rooms/${code}`);
+  let reason = 'forbidden';
+  const result = await runTransaction(target, current => {
+    const check = restart(current, host);
+    reason = check.code ?? reason;
+    return check.ok ? check.room : undefined;
+  }, { applyLocally: false });
+  return result.committed ? { ok: true, room: result.snapshot.val() } : { ok: false, code: reason };
+}
+
 async function leave(db, code, uid) {
   await Promise.all([
     remove(ref(db, `rooms/${code}/players/${uid}`)),
@@ -130,4 +152,4 @@ async function leave(db, code, uid) {
   ]);
 }
 
-export { claim, cycle, elect, join, leave, random, start, watch };
+export { claim, cycle, elect, join, leave, random, recover, reset, start, watch };

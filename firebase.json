@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "source": "cloud"
+  },
+  "database": {
+    "rules": "rules.json"
+  }
+}

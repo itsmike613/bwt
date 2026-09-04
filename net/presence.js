@@ -31,10 +31,10 @@ class Presence {
     try {
       const player = ref(this.db, `rooms/${this.code}/players/${this.uid}`);
       this.gone = onDisconnect(player);
-      await this.gone.remove();
+      await this.gone.update({ online: false, seen: serverTimestamp() });
       const result = await this.renew();
       if (!result.ok) throw Object.assign(new Error(result.code), { code: result.code });
-      await update(player, { seen: serverTimestamp() });
+      await update(player, { online: true, seen: serverTimestamp() });
     } catch (error) {
       this.fail?.(error);
     } finally {

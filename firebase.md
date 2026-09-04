@@ -1,6 +1,6 @@
 # Firebase setup
 
-This milestone uses Firebase only for authentication, room/lobby state, presence, and WebRTC signalling. Realtime player movement is not written to Realtime Database.
+Firebase is used for authentication, room/lobby state, presence, WebRTC signalling, and robust room cleanup metadata. Realtime player movement is not written to Realtime Database.
 
 ## 1. Create the Firebase project
 
@@ -30,7 +30,7 @@ The client initializes Firebase Auth with `initializeAuth()` and `browserSession
 5. Open the **Rules** tab.
 6. Replace the rules with the contents of `rules.json` and publish them.
 
-The Milestone 1 rules require Firebase Authentication and validate the room/player shape and team values, but they intentionally do not yet attempt the final hostile-client security model. Realtime Database Rules do not expose a supported child-count function, so the 10-player room limit is enforced by the existing atomic join transaction in `net/room.js` using the pure room logic in `data/room.js`. Concurrent joins are retried by Firebase transactions against the latest room state, so the normal application flow cannot commit an eleventh player. Independent server-side enforcement of the cap against a deliberately modified client is deferred to the Milestone 5 security-hardening pass rather than redesigning the room model here.
+The Milestone 5 rules require Firebase Authentication, validate room/player shape, constrain host/state transitions, restrict normal player-record changes, and scope signalling reads to the destination UID. The 10-active-player room limit remains enforced by the existing atomic Join transaction in `net/room.js`; the project intentionally does not add an enterprise anti-cheat/server-authority layer.
 
 Fresh-client Join detail: RTDB transaction callbacks can initially receive `null` even when the remote room exists. The Join path must not interpret that first transaction value as proof that the room is missing. `net/room.js` now opens an `onValue` listener on the exact room reference and waits for its first synchronized value while leaving that listener active through the Join transaction. If that listener reports no room, Join returns `missing`. If the room exists, the authoritative transaction still performs the room-state and 10-player checks.
 
@@ -78,4 +78,35 @@ The project uses relative local paths and browser ES modules. When the repositor
 
 ## Current networking boundary
 
-The `Peer` architecture is host-centered. The host creates one ordered WebRTC DataChannel to each other player. Realtime Database carries only offer/answer/ICE signalling messages under a separate `signal/` path, so room listeners are not redrawn by ICE traffic. No animation frames or rendering-rate coordinates are sent through Firebase. Milestone 2 now uses these existing DataChannels for a modest player-position foundation plus host-owned bed/death/generator/drop/block events; the full authority/interpolation/reconnect pass remains Milestone 5.
+The `Peer` architecture is host-centered. The host creates one ordered WebRTC DataChannel to each other player. Realtime Database carries only offer/answer/ICE signalling messages under a separate `signal/` path, so room listeners are not redrawn by ICE traffic. No animation frames or rendering-rate coordinates are sent through Firebase. Milestones 2–5 use these existing DataChannels for movement snapshots plus host-owned gameplay action/state events. Milestone 5 adds reconnect/re-offer handling while keeping Firebase out of rendering-rate gameplay state.
+
+
+## 7. Milestone 5 presence and cleanup functions
+
+Milestone 5 adds `firebase.json` and the `cloud/` Functions source. The browser marks a disconnected player offline through RTDB `onDisconnect`; the server-side `presence` trigger maintains the room's lone-player timestamp and deletes zero-player rooms. The scheduled `cleanup` function is a backstop that removes rooms which have stayed at exactly one online player for at least one hour and prunes stale offline lobby entries.
+
+Firebase currently supports Node.js 22 and ESM Cloud Functions, which matches `cloud/package.json`. Scheduled functions use Cloud Scheduler and may require the project billing/API setup Firebase requests during deployment.
+
+From the project root:
+
+```sh
+cd cloud
+npm install
+cd ..
+firebase login
+firebase use bwt1-243d7
+firebase deploy --only database,functions
+```
+
+You can also deploy separately while testing:
+
+```sh
+firebase deploy --only database
+firebase deploy --only functions:presence,functions:cleanup
+```
+
+The public GitHub Pages client still needs no Node build step. `cloud/` is only the Firebase backend deployment source.
+
+## Milestone 5 reconnect boundary
+
+A non-host reload in the same browser session can reconnect when Firebase restores the same anonymous user and the host is still running the match. The host seeds the reconnecting player's current authoritative state again over WebRTC. A host disconnect is intentionally different: per `spec.md`, the active match ends and the remaining players return to the same lobby with a newly elected host instead of attempting live authority migration.

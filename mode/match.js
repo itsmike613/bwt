@@ -1,7 +1,8 @@
 import { Arena } from './arena.js';
 
 class Match {
-  constructor() {
+  constructor(handlers = {}) {
+    this.handlers = handlers;
     this.node = document.querySelector('#match');
     this.code = document.querySelector('#matchcode');
     this.net = document.querySelector('#network');
@@ -12,12 +13,14 @@ class Match {
     this.key = '';
     this.queue = [];
     this.token = 0;
+    this.room = null;
   }
 
   open(code, room, uid, peer) {
+    this.room = room;
     const key = `${code}:${room.started ?? 'match'}`;
     if (this.key === key && (this.arena || this.task)) {
-      this.arena?.actors.sync(room);
+      this.arena?.roster(room);
       return this.task ?? Promise.resolve();
     }
     this.close();
@@ -38,7 +41,8 @@ class Match {
     if (!response.ok) throw new Error('Could not load data/map.json.');
     const data = await response.json();
     if (token !== this.token) return;
-    const arena = new Arena(this.stage, room, uid, peer, data);
+    const latest = this.room ?? room;
+    const arena = new Arena(this.stage, latest, uid, peer, data, this.handlers);
     this.arena = arena;
     this.stage.hidden = false;
     this.hud.hidden = false;
@@ -64,6 +68,7 @@ class Match {
     this.arena = null;
     this.queue.length = 0;
     this.key = '';
+    this.room = null;
     this.node.hidden = true;
     this.stage.hidden = true;
     this.hud.hidden = true;

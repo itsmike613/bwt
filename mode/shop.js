@@ -1,14 +1,10 @@
 import * as THREE from 'three';
 import { item, list } from '../data/item.js';
 import { armor, shop } from '../data/balance.js';
+import { distance, target } from './interact.js';
 
 const tabs = ['Blocks', 'Weapons', 'Tools', 'Armor', 'Utility'];
 const money = ['iron', 'gold', 'diamond', 'emerald'];
-
-function range(a, b) {
-  if (!a || !b) return Infinity;
-  return Math.hypot(a.x - (b.x + 0.5), a.y + 0.9 - (b.y + 0.8), a.z - (b.z + 0.5));
-}
 
 function label(text, color) {
   const canvas = document.createElement('canvas');
@@ -42,7 +38,13 @@ function stand(kind, team, pos) {
   const title = kind === 'item' ? 'Item Shop' : 'Island Shop';
   const text = label(title, team === 'red' ? '#ff8989' : '#89b1ff');
   text.position.y = 2.35;
-  group.add(body, head, text);
+  const hit = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 2.12, 0.9),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false })
+  );
+  hit.position.y = 1.06;
+  hit.userData.shop = { kind, team };
+  group.add(body, head, text, hit);
   group.position.set(pos.x + 0.5, pos.y, pos.z + 0.5);
   return group;
 }
@@ -86,9 +88,16 @@ class Shop {
   near(pos, team) {
     if (!pos || !team) return '';
     for (const kind of ['item', 'island']) {
-      if (range(pos, this.markers?.[team]?.[kind]) <= shop.reach) return kind;
+      if (distance(pos, this.markers?.[team]?.[kind]) <= shop.reach) return kind;
     }
     return '';
+  }
+
+  hit(camera, pos, team, block = Infinity) {
+    if (!camera) return null;
+    const origin = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+    const vec = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+    return target(origin, vec, pos, team, this.markers, shop.reach, block);
   }
 
   open(kind, state, uid, inv) {

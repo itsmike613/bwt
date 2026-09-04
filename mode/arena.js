@@ -8,6 +8,7 @@ import { Inventory } from '../core/inventory.js';
 import { item } from '../data/item.js';
 import { combat, drops as dropcfg, fireball as ballcfg, health, send, shop as market, tnt as tntcfg } from '../data/balance.js';
 import { move as tune } from '../data/tune.js';
+import { grace } from '../data/net.js';
 import { State } from './state.js';
 import { make as generators } from './generator.js';
 import { Drops } from './drop.js';
@@ -26,6 +27,8 @@ import { aim, damage, knock, reach, vector } from './fight.js';
 import { blocks as blastblocks, scale as blastscale } from './blast.js';
 import { Economy } from './economy.js';
 import { Shop } from './shop.js';
+import { Chat } from './chat.js';
+import { Victory } from './victory.js';
 
 function point(value) {
   return value && Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z);
@@ -58,10 +61,11 @@ function dist(a, b) {
 }
 
 class Arena {
-  constructor(stage, room, uid, peer, data) {
+  constructor(stage, room, uid, peer, data, handlers = {}) {
     this.room = room;
     this.uid = uid;
     this.peer = peer;
+    this.handlers = handlers;
     this.host = uid === room.host;
     this.runtime = new Runtime(stage);
     this.markers = read(this.runtime.world, data);
@@ -93,6 +97,12 @@ class Arena {
       buy: id => this.local({ kind: 'buy', item: id }),
       forge: id => this.local({ kind: 'forge', item: id })
     });
+    this.chat = new Chat(this.runtime.input, text => this.local({ kind: 'chat', text }));
+    this.victory = new Victory({ leave: () => this.handlers.leave?.(), restart: () => this.handlers.restart?.() });
+    this.endbtn = document.querySelector('#endgame');
+    this.endfn = () => this.handlers.end?.();
+    this.endbtn.hidden = !this.host;
+    this.endbtn.addEventListener('click', this.endfn);
     this.mode = 'live';
     this.clock = 0;
     this.peak = 0;
@@ -100,6 +110,7 @@ class Arena {
     this.pickups = new Set();
     this.positions = new Map();
     this.timers = new Map();
+    this.away = new Map();
     this.miners = new Map();
     this.attacks = new Map();
     this.credits = new Map();
@@ -110,6 +121,7 @@ class Arena {
   }
 
   start() {
+    this.roster(this.room);
     this.spawn();
     this.beds.sync(this.state);
     this.actors.state(this.state);
@@ -178,7 +190,11 @@ class Arena {
       this.mode = 'end';
       this.hud.count(0);
       this.hud.say(`${this.state.winner === 'red' ? 'Red' : 'Blue'} wins`);
+      this.hud.close(false);
       this.shop.close(false);
+      this.chat.close(false);
+      this.endbtn.hidden = true;
+      this.victory.open(this.room, this.state, this.uid);
       document.exitPointerLock?.();
     }
   }
@@ -207,6 +223,10 @@ class Arena {
     }
     if (data.kind === 'shop') {
       this.shop.result(data);
+      return;
+    }
+    if (data.kind === 'chat') {
+      this.chat.add(data);
       return;
     }
     if (data.kind === 'drop') {
@@ -336,6 +356,10 @@ class Arena {
   }
 
   request(uid, data) {
+    if (data.kind === 'chat') {
+      this.message(uid, data.text);
+      return;
+    }
     const player = this.state.players[uid];
     if (!player || player.dead || player.out || this.state.winner) return;
     if (data.kind === 'take') this.take(uid, data.id);
@@ -350,6 +374,52 @@ class Arena {
     if (data.kind === 'eat') this.eat(uid);
     if (data.kind === 'buy') this.buy(uid, data.item);
     if (data.kind === 'forge') this.forge(uid, data.item);
+  }
+
+  message(uid, value) {
+    const profile = this.room.players?.[uid];
+    const team = this.state.teams[uid];
+    if (!profile || !['red', 'blue'].includes(team) || typeof value !== 'string') return;
+    let text = value.trim().slice(0, 200);
+    let shout = false;
+    if (/^\/shout(?:\s|$)/i.test(text)) {
+      shout = true;
+      text = text.replace(/^\/shout\s*/i, '').trim();
+    }
+    if (!text) return;
+    const data = { kind: 'chat', uid, name: profile.name, team, shout, text };
+    for (const target of Object.keys(this.state.players)) {
+      const live = this.room.players?.[target];
+      if (!live || live.online === false) continue;
+      if (!shout && this.state.teams[target] !== team) continue;
+      if (target === this.uid) this.apply(data);
+      else this.peer.send(target, data);
+    }
+  }
+
+  roster(room) {
+    this.room = room;
+    this.actors.sync(room);
+    if (!this.host || this.state.winner) return;
+    for (const uid of Object.keys(this.state.players)) {
+      if (uid === this.uid) continue;
+      const live = room.players?.[uid]?.online !== false && Boolean(room.players?.[uid]);
+      if (live) {
+        clearTimeout(this.away.get(uid));
+        this.away.delete(uid);
+        continue;
+      }
+      if (this.away.has(uid)) continue;
+      const timer = setTimeout(() => {
+        this.away.delete(uid);
+        const current = this.room.players?.[uid];
+        if (current && current.online !== false) return;
+        if (!this.state.leave(uid)) return;
+        this.finish(uid, null, false);
+        this.emit({ kind: 'state', data: this.state.dump() });
+      }, grace * 1000);
+      this.away.set(uid, timer);
+    }
   }
 
   store(uid, kind) {
@@ -398,11 +468,12 @@ class Arena {
   }
 
   menu() {
-    return this.hud.shown || this.shop.shown;
+    return this.hud.shown || this.shop.shown || this.chat.shown || this.victory.shown;
   }
 
-  finish(uid, killer = null) {
+  finish(uid, killer = null, record = true) {
     this.undig(uid);
+    if (record) this.state.score(uid, killer);
     const bag = this.bags.get(uid);
     const loot = this.bags.death(uid);
     if (bag) this.emit({ kind: 'bag', action: 'reset', uid, data: bag.dump() });
@@ -688,11 +759,11 @@ class Arena {
     const hit = cast(this.runtime.world, camera, tune.reach);
 
     if (right) {
-      const store = this.shop.near(this.player.pos, this.team);
+      const store = this.shop.hit(camera, this.player.pos, this.team, hit?.dist ?? Infinity);
       if (store) {
         this.endmine();
         if (this.hud.shown) this.hud.toggle();
-        this.shop.open(store, this.state, this.uid, this.inv);
+        this.shop.open(store.kind, this.state, this.uid, this.inv);
         return;
       }
       const slot = this.inv.slot();
@@ -744,6 +815,13 @@ class Arena {
 
   keys() {
     const input = this.runtime.input;
+    if (this.victory.shown || this.chat.shown) return;
+    if (input.press('KeyT') || input.press('Slash')) {
+      this.shop.close(false);
+      this.hud.close(false);
+      this.chat.open(input.press('Slash'));
+      return;
+    }
     for (let i = 0; i < 9; i++) if (input.press(`Digit${i + 1}`)) this.hud.select(i);
     if (input.press('KeyE')) {
       if (this.shop.shown) this.shop.close();
@@ -867,6 +945,8 @@ class Arena {
     this.runtime.stop();
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
+    for (const timer of this.away.values()) clearTimeout(timer);
+    this.away.clear();
     this.drops.close();
     this.beds.close();
     this.holo.close();
@@ -877,6 +957,10 @@ class Arena {
     this.balls.close();
     this.fx.close();
     this.shop.closeall();
+    this.chat.closeall();
+    this.victory.closeall();
+    this.endbtn.removeEventListener('click', this.endfn);
+    this.endbtn.hidden = true;
   }
 }
 

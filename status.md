@@ -2,13 +2,15 @@
 
 ## Current milestone
 
-Milestone 4 — Economy — IMPLEMENTED IN THIS BUILD, LIVE VERIFICATION PENDING
+Milestone 5 — Multiplayer — IMPLEMENTED IN THIS BUILD, LIVE VERIFICATION PENDING
 
 Milestone 1 is complete and accepted through the project owner's real two-browser Firebase/WebRTC test on September 3, 2026.
 
 Milestone 2 is complete and accepted through the project owner's real two-browser match test on September 3, 2026. That live test verified both players entering the same shared world, synchronized BedWars state, both beds being destroyable, and the win foundation producing `Blue wins` correctly.
 
 Milestone 3 is complete and accepted through the project owner's live browser test on September 3, 2026. That test verified both players joining the same world, consistent remote-player visibility, melee combat, damage, knockback, deaths/respawns, and working WebRTC.
+
+Milestone 4 is complete after the project owner's live browser test on September 3, 2026. The live economy/shop systems worked well; the remaining proximity-only shop interaction bug was then fixed so a shop opens only when the crosshair ray hits its compact NPC interaction box within range and no nearer voxel blocks the ray.
 
 Known non-blocking polish issues intentionally deferred:
 
@@ -146,7 +148,7 @@ The later Milestone 3 live browser test confirmed that remote players are visibl
 - Firebase is still not used for rendering-rate gameplay state.
 - No limb rotations, crack progress frames, projectile render frames, or generator countdown seconds are sent through Firebase.
 
-## Milestone 4 — IMPLEMENTED IN THIS BUILD, LIVE VERIFICATION PENDING
+## Milestone 4 — COMPLETE
 
 ### Item Shop
 
@@ -223,13 +225,67 @@ The later Milestone 3 live browser test confirmed that remote players are visibl
 - The shop display adds only a few simple meshes/sprites and does not alter voxel collision, chunk meshing, the editor, or map geometry.
 - The public game remains `index.html`; no second game page or framework was introduced.
 
-## Milestone 4 intentionally does not begin Milestone 5
+## Milestone 5 — IMPLEMENTED IN THIS BUILD, LIVE VERIFICATION PENDING
 
-The following remain frozen for later milestones and were not pulled forward:
+### Milestone 4 interaction fix
 
-- final reconnect/interpolation/host-disconnect behavior, chat, End Game/New Game, room cleanup, and match statistics — Milestone 5;
-- full victory screen/New Game/Leave Room — Milestone 5;
-- final sounds, presentation, sword-model improvement, performance profiling, and Chromebook polish — Milestone 6.
+- Removed proximity-only shop opening from the right-click path.
+- Each Item Shop/Island Shop NPC now has a compact invisible body-sized interaction box; floating hologram sprites are not raycast targets.
+- Shop targeting requires both crosshair-ray intersection and the existing configured shop reach.
+- The voxel ray distance is compared with the shop hit distance, so a normal block in front of a shop wins and shops cannot be used through walls.
+- Normal right-click block placement, TNT, Fireballs, Golden Apples, and existing shop/economy behavior remain unchanged when the shop is not the valid nearest interaction.
+- Regression tests cover direct aim, aiming away while near, block occlusion, and out-of-range shops.
+
+### Multiplayer/networking
+
+- Preserved the existing host-star WebRTC architecture and host-authoritative action model.
+- Existing 10 Hz movement snapshots and remote interpolation remain the realtime movement path; gameplay outcomes continue to use authoritative state/action events rather than Firebase rendering-rate writes.
+- Failed/disconnected host↔client peer links now schedule a lightweight host-side re-offer without changing topology.
+- Existing players can restore their room presence during an active match; new players are still rejected once the match has started.
+- Same-tab/session reload recovery stores only the room code and public player profile in `sessionStorage`, then reuses Firebase Anonymous Auth session identity and the existing Join transaction to reconnect where possible.
+- Non-host disconnects receive a centralized 10-second reconnect grace window. If they return, the host seeds authoritative state/inventory/world entities again; if they do not, they are permanently removed from active match state so a vanished player cannot block the win condition.
+
+### Presence, host behavior, and room lifecycle
+
+- Presence now marks players `online: false` on disconnect rather than immediately deleting their match membership; reconnect restores `online: true`.
+- Lobby host election skips missing/offline hosts and promotes the oldest remaining online player.
+- If the host disconnects during a match, clients do not attempt live simulation-host migration. The match closes safely, a centered `Host Disconnected` message is shown, another online player is elected, and the room returns to the same lobby.
+- Added the host-only in-match `End Game` control; it returns everyone to the same room lobby.
+- Added host `New Game` on the victory screen; it resets the in-memory match by returning the room to lobby so the next Start creates a clean Arena/map state without requiring rejoin/recreate.
+- Non-host victory screens provide `Leave Room`.
+- Added Firebase Functions source under `cloud/`: an RTDB presence trigger maintains the lone-player timestamp and promptly deletes zero-player rooms; a scheduled cleanup deletes rooms left with one player for at least one hour and prunes stale offline lobby entries.
+
+### Chat
+
+- `T` opens normal team chat and `/` opens command-ready chat while releasing pointer lock.
+- Default messages are routed only to the sender's team by the authoritative host.
+- `/shout message` is routed to all online match players and is visually distinguished with `[SHOUT]`.
+- No chat cooldown was added.
+- Chat uses compact DataChannel events and does not add a Firebase chat polling/rendering path.
+
+### Victory and match statistics
+
+- Authoritative synchronized match state now tracks per-player kills, deaths, and bed breaks.
+- Death/kill statistics use the same validated combat/void/fall attribution path already used for gameplay outcomes.
+- Bed-break statistics update only when the authoritative bed break succeeds.
+- Added the required simple victory screen with winning team, all room players, team, kills, deaths, bed breaks, Red/Blue bed breakers, most kills, and most deaths.
+- Winner/statistics remain part of the same synchronized state used by reconnect seed snapshots.
+
+### Firebase rules/security
+
+- Tightened `rules.json` so room writes require authenticated membership or a valid lobby join/create path.
+- Player-record validation restricts ordinary players to their own record while retaining host team-control operations.
+- Host/state transitions are validated so normal match start/reset requires the host, with the specific offline-host recovery transition allowed for remaining players.
+- Signalling reads are scoped to the destination authenticated UID; signalling writes require the authenticated sender to be a room participant and target another room participant.
+- Server cleanup uses Firebase Admin privileges rather than weakening client rules for `alone` timestamp maintenance.
+
+### Deferred Milestone 6 polish
+
+- The crude current sword model remains deferred.
+- Remote head pitch remains deferred.
+- Inventory/shop icons should support assets separate from world block textures during Milestone 6 polish; no premature icon-system redesign was added in Milestone 5.
+
+No Milestone 6 polish work is intentionally included in this build.
 
 ## Tests and verification
 
@@ -240,10 +296,11 @@ Automated tests currently pass:
   - shared map/provenance/chunk behavior;
   - remote model yaw-axis correction and shortest-path yaw interpolation.
 - `node net/test.js`
-  - room/lobby validation and transactions;
+  - room/lobby validation and transactions, including active-match reconnect, lobby host promotion, host-disconnect recovery, and host reset rules;
   - mocked Firebase Join control-flow tests (explicitly mocked, not claimed as Firebase-runtime proof);
   - Auth initialization static audit;
-  - host-star WebRTC offer/answer/ICE/DataChannel behavior.
+  - host-star WebRTC offer/answer/ICE/DataChannel behavior and retry-path static audit;
+  - presence, tightened rules, and server cleanup static audits.
 - `node mode/test.js`
   - all earlier inventory/state/generator/combat/mining/explosion regressions;
   - Leather/Iron/Diamond armor state, mitigation, no-downgrade behavior, and persistence through death;
@@ -254,11 +311,13 @@ Automated tests currently pass:
   - upgraded sword replacement/loss and Wooden Sword restoration;
   - Forge I/Forge II sequential Diamond purchases and team-only level state;
   - Forge I/II Iron and Gold interval changes;
-  - static shop UI/blur and Arena request-path checks.
+  - shop ray-target regression tests for direct aim, aim-away, voxel occlusion, and range;
+  - match statistics/disconnect-win regressions;
+  - static chat, `/shout`, End Game, and victory UI/action-path checks.
 
 All project JavaScript passes `node --check`; `rules.json` and `data/map.json` parse as valid JSON; and `data/firebase.js` still contains the accepted permanent Firebase client configuration.
 
-A headless Chromium smoke attempt in the build sandbox was not treated as proof because the app imports Three.js/Firebase modules from external CDNs and the sandbox load stalled on that external dependency path. Automated/static checks therefore do not claim to prove live pointer-lock, WebGL shop visuals, Firebase runtime, or two-browser DataChannel timing. The project owner's next live test should focus on Milestone 4 purchase/upgrade/use behavior while also confirming Milestones 1–3 remain intact.
+A headless Chromium smoke attempt in the build sandbox was not treated as proof because the app imports Three.js/Firebase modules from external CDNs and the sandbox load stalled on that external dependency path. Automated/static checks therefore do not claim to prove live pointer-lock, WebGL shop visuals, Firebase runtime, or two-browser DataChannel timing. The project owner's next live test should focus on Milestone 5 reconnect/presence, host-disconnect recovery, End Game/New Game, team chat/`/shout`, victory/statistics synchronization, and regression of the corrected shop targeting while confirming Milestones 1–4 remain intact.
 
 ## Performance / engineering notes
 
@@ -276,7 +335,7 @@ A headless Chromium smoke attempt in the build sandbox was not treated as proof 
 - Shop purchases/upgrades are infrequent action events over the existing DataChannels; no shop polling or Firebase gameplay-rate writes were added.
 - Item/Island Shop world markers use only lightweight simple meshes/sprites.
 - Golden Apple regeneration and Forge progression reuse the existing match tick/state path rather than adding background timers per client.
-- Full network interpolation profiling and Chromebook profiling remain Milestones 5/6 as specified.
+- Final network-efficiency profiling and Chromebook profiling remain Milestone 6 polish as specified.
 
 ## Important implementation decisions
 

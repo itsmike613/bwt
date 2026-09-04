@@ -33,11 +33,16 @@ function member(uid, name, skin, stamp = 0) {
     name: clean(name),
     skin,
     team: 'none',
-    joined: stamp
+    joined: stamp,
+    online: true
   };
 }
 
 function players(room) {
+  return Object.values(room?.players ?? {}).filter(item => item?.online !== false);
+}
+
+function roster(room) {
   return Object.values(room?.players ?? {});
 }
 
@@ -56,14 +61,15 @@ function claim(current, item, stamp = 0) {
 
 function join(current, item) {
   if (!current) return { ok: false, code: 'missing', room: current };
-  if (current.state !== 'lobby') return { ok: false, code: 'started', room: current };
   const list = current.players ?? {};
-  if (!list[item.uid] && Object.keys(list).length >= limit) return { ok: false, code: 'full', room: current };
   const old = list[item.uid];
+  if (current.state !== 'lobby' && !old) return { ok: false, code: 'started', room: current };
+  if (!old && players(current).length >= limit) return { ok: false, code: 'full', room: current };
   const next = {
     ...item,
     team: old?.team ?? 'none',
-    joined: old?.joined ?? item.joined
+    joined: old?.joined ?? item.joined,
+    online: true
   };
   return { ok: true, room: { ...current, players: { ...list, [item.uid]: next } } };
 }
@@ -131,9 +137,24 @@ function next(room) {
 
 function elect(room) {
   if (!room) return room;
-  if (room.host && room.players?.[room.host]) return room;
+  const current = room.host ? room.players?.[room.host] : null;
+  if (current && current.online !== false) return room;
   const host = next(room);
   return host ? { ...room, host } : room;
+}
+
+function recover(room) {
+  if (!room || room.state !== 'match') return { ok: false, room };
+  const current = room.players?.[room.host];
+  if (current && current.online !== false) return { ok: false, room };
+  const host = next(room);
+  if (!host) return { ok: false, room };
+  return { ok: true, room: { ...room, host, state: 'lobby', started: null } };
+}
+
+function reset(room, uid) {
+  if (!room || room.host !== uid || room.state !== 'match') return { ok: false, code: 'forbidden', room };
+  return { ok: true, room: { ...room, state: 'lobby', started: null } };
 }
 
 function message(code) {
@@ -151,4 +172,4 @@ function message(code) {
   return map[code] ?? 'Something went wrong.';
 }
 
-export { claim, code, cycle, elect, form, join, limit, member, message, players, random, teamlimit, valid };
+export { claim, code, cycle, elect, form, join, limit, member, message, players, random, recover, reset, roster, teamlimit, valid };

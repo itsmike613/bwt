@@ -4,9 +4,11 @@ class State {
   constructor(room) {
     this.teams = {};
     this.players = {};
+    this.stats = {};
     for (const item of Object.values(room?.players ?? {})) {
       this.teams[item.uid] = item.team;
       this.players[item.uid] = { health: health.max, dead: false, out: false, armor: 'leather', regen: 0, pulse: 0 };
+      this.stats[item.uid] = { kills: 0, deaths: 0, beds: 0 };
     }
     this.beds = { red: true, blue: true };
     this.breakers = { red: null, blue: null };
@@ -22,6 +24,11 @@ class State {
       player.regen = Math.max(0, Number(player.regen) || 0);
       player.pulse = Math.max(0, Number(player.pulse) || 0);
     }
+    this.stats = structuredClone(data.stats ?? this.stats);
+    for (const uid of Object.keys(this.players)) {
+      const score = this.stats[uid] ?? {};
+      this.stats[uid] = { kills: Math.max(0, Number(score.kills) || 0), deaths: Math.max(0, Number(score.deaths) || 0), beds: Math.max(0, Number(score.beds) || 0) };
+    }
     this.beds = { ...this.beds, ...(data.beds ?? {}) };
     this.breakers = { ...this.breakers, ...(data.breakers ?? {}) };
     this.forge = { ...this.forge, ...(data.forge ?? {}) };
@@ -31,6 +38,7 @@ class State {
   dump() {
     return {
       players: structuredClone(this.players),
+      stats: structuredClone(this.stats),
       beds: { ...this.beds },
       breakers: { ...this.breakers },
       forge: { ...this.forge },
@@ -99,6 +107,26 @@ class State {
     return changed;
   }
 
+  score(uid, killer = null) {
+    const death = this.stats[uid];
+    if (!death) return false;
+    death.deaths++;
+    if (killer && killer !== uid && this.stats[killer]) this.stats[killer].kills++;
+    return true;
+  }
+
+  leave(uid) {
+    const player = this.players[uid];
+    if (!player || player.out || this.winner) return false;
+    player.health = 0;
+    player.dead = true;
+    player.out = true;
+    player.regen = 0;
+    player.pulse = 0;
+    this.win();
+    return true;
+  }
+
   die(uid) {
     const player = this.players[uid];
     if (!player || player.dead || player.out || this.winner) return { ok: false };
@@ -126,6 +154,7 @@ class State {
     if (this.teams[uid] === team || !this.beds[team] || this.winner) return false;
     this.beds[team] = false;
     this.breakers[team] = uid;
+    if (this.stats[uid]) this.stats[uid].beds++;
     this.win();
     return true;
   }

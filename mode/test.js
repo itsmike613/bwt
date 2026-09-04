@@ -10,6 +10,7 @@ import { blocks as blast } from './blast.js';
 import { Bags } from './bags.js';
 import { Economy } from './economy.js';
 import { shop } from '../data/balance.js';
+import { target } from './interact.js';
 
 function room() {
   return {
@@ -300,6 +301,37 @@ function room() {
   assert.equal(gen.outputs.find(item => item.id === 'gold').every, 4);
 }
 
+
+{
+  const markers = {
+    red: {
+      item: { x: 0, y: 0, z: -2 },
+      island: { x: 3, y: 0, z: -2 }
+    }
+  };
+  const pos = { x: 0.5, y: 0, z: 0.5 };
+  const origin = { x: 0.5, y: 1.62, z: 0.5 };
+  const direct = { x: 0, y: 0, z: -1 };
+  const away = { x: 1, y: 0, z: 0 };
+  assert.equal(target(origin, direct, pos, 'red', markers, shop.reach)?.kind, 'item', 'aiming directly at a shop within range should target it');
+  assert.equal(target(origin, away, pos, 'red', markers, shop.reach), null, 'aiming away while near a shop should not target it');
+  assert.equal(target(origin, direct, pos, 'red', markers, shop.reach, 1), null, 'a nearer block should occlude a shop');
+  assert.equal(target(origin, direct, { x: 0.5, y: 0, z: 3.5 }, 'red', markers, shop.reach), null, 'an out-of-range shop should not target');
+}
+
+
+{
+  const state = new State(room());
+  state.score('blue', 'red');
+  assert.deepEqual(state.stats.red, { kills: 1, deaths: 0, beds: 0 });
+  assert.deepEqual(state.stats.blue, { kills: 0, deaths: 1, beds: 0 });
+  assert.equal(state.break('blue', 'red'), true);
+  assert.equal(state.stats.red.beds, 1, 'bed breaks are recorded in match statistics');
+  assert.equal(state.leave('blue'), true, 'disconnected player can be removed from active match state');
+  assert.equal(state.players.blue.out, true);
+  assert.equal(state.winner, 'red', 'a departed last enemy cannot block the win condition');
+}
+
 {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
@@ -310,6 +342,15 @@ function room() {
   assert.ok(arena.includes("data.kind === 'buy'"));
   assert.ok(arena.includes("data.kind === 'forge'"));
   assert.ok(arena.includes("data.kind === 'eat'"));
+  assert.ok(arena.includes('this.shop.hit(camera'), 'shop opening should require a crosshair hit');
+  assert.ok(html.includes('id="chatinput"'));
+  assert.ok(html.includes('id="victory"'));
+  assert.ok(html.includes('id="endgame"'));
+  assert.ok(arena.includes("kind: 'chat'"));
+  assert.ok(arena.includes('/^\\/shout'));
+  assert.ok(arena.includes('this.victory.open'));
+  assert.ok(arena.includes('this.state.score(uid, killer)'));
+  assert.equal(arena.includes('this.shop.near(this.player.pos'), false, 'proximity-only shop opening must stay removed');
 }
 
-console.log('Milestone 4 economy, shop, armor, forge, regeneration, and regression tests passed');
+console.log('Milestone 5 multiplayer plus Milestone 4 economy/interaction regression tests passed');

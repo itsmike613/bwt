@@ -1,4 +1,4 @@
-import { claim, code, cycle, elect, form, join, member, players, random, valid } from '../data/room.js';
+import { claim, code, cycle, elect, form, join, member, players, random, recover, reset, valid } from '../data/room.js';
 import { admit } from './admit.js';
 import { readFileSync } from 'node:fs';
 import { config, ready } from '../data/firebase.js';
@@ -18,6 +18,16 @@ assert(fire.includes('browserSessionPersistence'), 'Firebase Auth selects sessio
 assert(!fire.includes('getAuth'), 'Firebase Auth is not initialized through getAuth');
 assert(!login.includes('setPersistence'), 'signin does not change persistence after Auth initialization');
 console.log('Firebase Auth initialization audit passed (static source audit, not a cross-tab runtime test)');
+
+const presence = readFileSync(new URL('./presence.js', import.meta.url), 'utf8');
+const rules = readFileSync(new URL('../rules.json', import.meta.url), 'utf8');
+const cloud = readFileSync(new URL('../cloud/index.js', import.meta.url), 'utf8');
+assert(presence.includes('online: false'), 'presence marks disconnects offline instead of deleting match membership immediately');
+assert(presence.includes('online: true'), 'presence restores online state after reconnect');
+assert(rules.includes('auth.uid === $uid'), 'Firebase signalling reads/writes are scoped to authenticated participants');
+assert(cloud.includes("onSchedule('every 15 minutes'"), 'server cleanup schedule is present');
+assert(cloud.includes('60 * 60 * 1000'), 'one-hour lone-room cleanup threshold is present');
+
 
 const known = ['plain', 'red', 'blue'];
 let check = form('', 'plain', '', known);
@@ -90,6 +100,23 @@ host = join(host, two).room;
 delete host.players.a;
 host = elect(host);
 assert(host.host === 'b', 'remaining player is promoted when lobby host is absent');
+
+
+let live = claim(null, member('host', 'Host', 'plain', 1), 1).room;
+live = join(live, member('guest', 'Guest', 'blue', 2)).room;
+live.players.host.online = false;
+const promoted = elect(live);
+assert(promoted.host === 'guest', 'offline lobby host is skipped during promotion');
+
+let running = { ...live, state: 'match', started: 10, host: 'host' };
+const resumed = join(running, member('guest', 'Guest', 'blue', 99));
+assert(resumed.ok && resumed.room.players.guest.online === true, 'existing player can refresh presence during an active match');
+assert(join(running, member('late', 'Late', 'plain', 3)).code === 'started', 'new players cannot join an active match');
+const rescued = recover(running);
+assert(rescued.ok && rescued.room.state === 'lobby' && rescued.room.host === 'guest' && rescued.room.started === null, 'host disconnect safely returns remaining players to lobby with a promoted host');
+assert(!reset(running, 'guest').ok, 'non-host cannot end an active match');
+const ended = reset({ ...running, host: 'guest' }, 'guest');
+assert(ended.ok && ended.room.state === 'lobby' && ended.room.started === null, 'host End Game/New Game reset returns the room to lobby');
 
 console.log('room and lobby logic tests passed');
 
@@ -343,6 +370,11 @@ assert(peer.count() === 1, 'open DataChannel contributes to connected peer count
 peer.data({ kind: 'test' });
 assert(peer.links.get('b').channel.sent.some(item => item.includes('test')), 'host broadcast uses open DataChannels');
 assert(peer.send('b', { kind: 'direct' }), 'host can send a targeted gameplay message over an open DataChannel');
+
+const peersource = readFileSync(new URL('./peer.js', import.meta.url), 'utf8');
+assert(peersource.includes("state === 'failed' || state === 'disconnected'"), 'failed/disconnected WebRTC links schedule a host-side retry');
+assert(peersource.includes('this.offer(uid).catch(() => this.again(uid))'), 'host retry path re-offers the DataChannel without changing topology');
+
 assert(peer.links.get('b').channel.sent.some(item => item.includes('direct')), 'targeted DataChannel message reaches the requested peer');
 
 const clientwire = new Wire();
