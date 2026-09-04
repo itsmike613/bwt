@@ -72,7 +72,8 @@ class Shop {
     this.inv = null;
     this.shown = false;
     this.build();
-    this.closebtn?.addEventListener('click', () => this.close());
+    this.closefn = () => this.close();
+    this.closebtn?.addEventListener('click', this.closefn);
   }
 
   build() {
@@ -110,7 +111,7 @@ class Shop {
     this.shown = true;
     this.node.hidden = false;
     this.note.textContent = '';
-    document.exitPointerLock?.();
+    this.input.release();
     this.draw(state, uid, inv);
     return true;
   }
@@ -120,7 +121,7 @@ class Shop {
     this.shown = false;
     this.node.hidden = true;
     this.note.textContent = '';
-    if (capture) this.input.node.requestPointerLock?.();
+    if (capture) this.input.capture();
   }
 
   result(data) {
@@ -242,6 +243,9 @@ class Shop {
 
   closeall() {
     this.close(false);
+    this.closebtn?.removeEventListener('click', this.closefn);
+    this.tabs.replaceChildren();
+    this.cards.replaceChildren();
     this.group.traverse(node => {
       node.geometry?.dispose();
       if (node.userData?.map) node.userData.map.dispose();

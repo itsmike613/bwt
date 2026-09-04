@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BedWars</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <main id="landing">
+    <section id="card">
+      <h1>BedWars</h1>
+      <div id="form">
+        <label>Username<input id="username" maxlength="16" autocomplete="off"><span id="usererror" class="error"></span></label>
+        <label>Skin<select id="skin"></select><span id="skinerror" class="error"></span></label>
+        <label>Invite code<input id="invite" maxlength="20" autocomplete="off"><span id="inviteerror" class="error"></span></label>
+        <div id="actions">
+          <button id="create" type="button">Create</button>
+          <button id="join" type="button">Join</button>
+        </div>
+        <p id="actionerror" class="error" role="alert"></p>
+      </div>
+    </section>
+  </main>
+
+  <main id="lobby" hidden>
+    <section id="lobbycard">
+      <header id="lobbyhead">
+        <div><span>Room</span><strong id="roomcode"></strong></div>
+        <p id="hostnote"></p>
+      </header>
+      <div id="players"></div>
+      <p id="lobbyerror" class="error" role="alert"></p>
+      <div id="lobbyactions">
+        <button id="random" type="button">Randomize</button>
+        <button id="start" type="button">Start</button>
+      </div>
+    </section>
+  </main>
+
+  <main id="match" hidden>
+    <section id="matchcard">
+      <h1>Loading match</h1>
+      <p>Room <strong id="matchcode"></strong></p>
+      <p class="muted">Loading the shared editor map and BedWars state…</p>
+    </section>
+  </main>
+
+  <div id="stage" hidden></div>
+  <div id="hud" hidden>
+    <div id="cross"></div>
+    <div id="beds"></div>
+    <div id="info"><span id="network">WebRTC 0/0 connected</span> · <span id="armor">Leather Armor</span><span id="regen" hidden> · Regen</span></div>
+    <button id="endgame" type="button" hidden>End Game</button>
+    <div id="notice" hidden></div>
+    <div id="countdown" hidden></div>
+    <div id="bottom">
+      <div id="health">20 / 20</div>
+      <div id="track"><div id="bar"></div></div>
+      <div id="hotbar"></div>
+    </div>
+    <div id="inventory" hidden>
+      <section id="bag">
+        <h2>Inventory</h2>
+        <div id="grid"></div>
+        <p>Click one slot, then another to swap. Press E to close.</p>
+      </section>
+    </div>
+    <div id="shop" hidden>
+      <section id="shopcard">
+        <header id="shophead">
+          <div>
+            <h2 id="shoptitle">Item Shop</h2>
+            <p id="shopmoney"></p>
+          </div>
+          <button id="shopclose" type="button">Close</button>
+        </header>
+        <nav id="shoptabs"></nav>
+        <div id="shopcards"></div>
+        <p id="shopnote" role="status"></p>
+      </section>
+    </div>
+    <div id="chat">
+      <div id="chatlist"></div>
+      <form id="chatform" hidden><input id="chatinput" maxlength="200" autocomplete="off" aria-label="Chat message"></form>
+    </div>
+    <div id="victory" hidden>
+      <section id="victorycard">
+        <h2 id="victorytitle">Victory</h2>
+        <div id="victorybody"></div>
+        <div id="victorysummary">
+          <p>Red bed: <strong id="redbreaker">Not destroyed</strong></p>
+          <p>Blue bed: <strong id="bluebreaker">Not destroyed</strong></p>
+          <p>Most kills: <strong id="mostkills">—</strong></p>
+          <p>Most deaths: <strong id="mostdeaths">—</strong></p>
+        </div>
+        <div id="victoryactions">
+          <button id="leaveroom" type="button">Leave Room</button>
+          <button id="newgame" type="button">New Game</button>
+        </div>
+      </section>
+    </div>
+    <div id="hint">Click to capture mouse · WASD move · Space jump · Ctrl sprint · Shift crouch · LMB attack/break · RMB place/use/shop · E inventory · T team chat · / command · 1–9 hotbar</div>
+  </div>
+  <div id="modal" hidden>
+    <section id="modalcard">
+      <h2 id="modaltitle"></h2>
+      <p id="modaltext"></p>
+      <button id="modalclose" type="button">OK</button>
+    </section>
+  </div>
+  <script type="module" src="./mode/game.js"></script>
+</body>
+</html>

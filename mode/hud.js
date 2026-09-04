@@ -19,14 +19,21 @@ class Hud {
     this.cross = document.querySelector('#cross');
     this.flash = null;
     this.slots = [];
+    this.events = [];
     this.hold = null;
     this.shown = false;
+    this.inv = null;
+
+    this.hotbar.replaceChildren();
+    this.grid.replaceChildren();
     for (let i = 0; i < 36; i++) {
       const node = document.createElement('button');
       node.type = 'button';
       node.className = 'slot';
       node.dataset.index = String(i);
-      node.addEventListener('click', () => this.click(i));
+      const click = () => this.click(i);
+      node.addEventListener('click', click);
+      this.events.push([node, click]);
       this.grid.append(node);
       this.slots.push(node);
       if (i < 9) {
@@ -62,7 +69,7 @@ class Hud {
     this.shown = true;
     this.inventory.hidden = false;
     this.hold = null;
-    document.exitPointerLock?.();
+    this.input.release();
     this.draw();
     return true;
   }
@@ -72,7 +79,7 @@ class Hud {
     this.shown = false;
     this.inventory.hidden = true;
     this.hold = null;
-    if (capture) this.input.node.requestPointerLock?.();
+    if (capture) this.input.capture();
     this.draw();
   }
 
@@ -100,7 +107,7 @@ class Hud {
     if (this.inv) {
       for (let i = 0; i < this.slots.length; i++) this.slot(this.slots[i], this.inv.slots[i], i);
       const list = this.hotbar.children;
-      for (let i = 0; i < 9; i++) this.slot(list[i], this.inv.slots[i], i, true);
+      for (let i = 0; i < 9; i++) if (list[i]) this.slot(list[i], this.inv.slots[i], i, true);
     }
     if (!state || !uid) return;
     const player = state.players?.[uid];
@@ -138,6 +145,19 @@ class Hud {
 
   net(open, total) {
     this.network.textContent = `WebRTC ${open}/${total} connected`;
+  }
+
+  closeall() {
+    this.close(false);
+    clearTimeout(this.flash);
+    this.flash = null;
+    for (const [node, click] of this.events) node.removeEventListener('click', click);
+    this.events.length = 0;
+    this.slots.length = 0;
+    this.hotbar.replaceChildren();
+    this.grid.replaceChildren();
+    this.inventory.hidden = true;
+    this.inv = null;
   }
 }
 

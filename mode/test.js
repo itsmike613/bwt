@@ -11,6 +11,11 @@ import { Bags } from './bags.js';
 import { Economy } from './economy.js';
 import { shop } from '../data/balance.js';
 import { target } from './interact.js';
+import { Hud } from './hud.js';
+import { Chat } from './chat.js';
+import { Input } from '../core/input.js';
+import { death } from './death.js';
+import { chat as chattune } from '../data/balance.js';
 
 function room() {
   return {
@@ -353,4 +358,260 @@ function room() {
   assert.equal(arena.includes('this.shop.near(this.player.pos'), false, 'proximity-only shop opening must stay removed');
 }
 
-console.log('Milestone 5 multiplayer plus Milestone 4 economy/interaction regression tests passed');
+
+class Fakeclass {
+  constructor() {
+    this.names = new Set();
+  }
+
+  add(...names) {
+    for (const name of names) this.names.add(name);
+  }
+
+  remove(...names) {
+    for (const name of names) this.names.delete(name);
+  }
+
+  contains(name) {
+    return this.names.has(name);
+  }
+
+  toggle(name, force) {
+    if (force) this.names.add(name);
+    else this.names.delete(name);
+  }
+}
+
+class Fakenode {
+  constructor(tag = 'div') {
+    this.tagName = tag.toUpperCase();
+    this.children = [];
+    this.parentNode = null;
+    this.dataset = {};
+    this.style = {};
+    this.classList = new Fakeclass();
+    this.className = '';
+    this.hidden = false;
+    this.value = '';
+    this.type = '';
+    this._text = '';
+    this.events = new Map();
+  }
+
+  set textContent(value) {
+    this._text = String(value ?? '');
+    if (this._text === '') this.replaceChildren();
+  }
+
+  get textContent() {
+    return this._text;
+  }
+
+  get firstElementChild() {
+    return this.children[0] ?? null;
+  }
+
+  append(...nodes) {
+    for (const node of nodes) {
+      node.parentNode = this;
+      this.children.push(node);
+    }
+  }
+
+  replaceChildren(...nodes) {
+    for (const node of this.children) node.parentNode = null;
+    this.children = [];
+    this.append(...nodes);
+  }
+
+  remove() {
+    if (!this.parentNode) return;
+    const list = this.parentNode.children;
+    const index = list.indexOf(this);
+    if (index >= 0) list.splice(index, 1);
+    this.parentNode = null;
+  }
+
+  addEventListener(type, fn) {
+    if (!this.events.has(type)) this.events.set(type, new Set());
+    this.events.get(type).add(fn);
+  }
+
+  removeEventListener(type, fn) {
+    this.events.get(type)?.delete(fn);
+  }
+
+  count(type) {
+    return this.events.get(type)?.size ?? 0;
+  }
+
+  focus() {}
+  blur() {}
+  setSelectionRange() {}
+}
+
+class Fakedoc {
+  constructor(nodes) {
+    this.nodes = nodes;
+    this.events = new Map();
+    this.pointerLockElement = null;
+  }
+
+  querySelector(id) {
+    return this.nodes.get(id) ?? null;
+  }
+
+  createElement(tag) {
+    return new Fakenode(tag);
+  }
+
+  addEventListener(type, fn) {
+    if (!this.events.has(type)) this.events.set(type, new Set());
+    this.events.get(type).add(fn);
+  }
+
+  removeEventListener(type, fn) {
+    this.events.get(type)?.delete(fn);
+  }
+
+  count(type) {
+    return this.events.get(type)?.size ?? 0;
+  }
+
+  exitPointerLock() {
+    this.pointerLockElement = null;
+  }
+}
+
+function dom() {
+  const ids = [
+    '#health', '#bar', '#hotbar', '#inventory', '#grid', '#countdown', '#notice', '#beds',
+    '#network', '#armor', '#regen', '#info', '#cross', '#chat', '#chatlist', '#chatform', '#chatinput'
+  ];
+  const nodes = new Map(ids.map(id => [id, new Fakenode()]));
+  return { nodes, doc: new Fakedoc(nodes) };
+}
+
+{
+  const olddoc = globalThis.document;
+  const oldadd = globalThis.addEventListener;
+  const oldremove = globalThis.removeEventListener;
+  const oldraf = globalThis.requestAnimationFrame;
+  const oldcancel = globalThis.cancelAnimationFrame;
+  const root = new Map();
+  globalThis.addEventListener = (type, fn) => {
+    if (!root.has(type)) root.set(type, new Set());
+    root.get(type).add(fn);
+  };
+  globalThis.removeEventListener = (type, fn) => root.get(type)?.delete(fn);
+  globalThis.requestAnimationFrame = () => 1;
+  globalThis.cancelAnimationFrame = () => {};
+
+  try {
+    const { nodes, doc } = dom();
+    globalThis.document = doc;
+    for (let cycle = 0; cycle < 5; cycle++) {
+      const canvas = new Fakenode('canvas');
+      canvas.requestPointerLock = () => { doc.pointerLockElement = canvas; };
+      const input = new Input(canvas);
+      const hud = new Hud(input);
+      const slots = [...nodes.get('#grid').children];
+      assert.equal(nodes.get('#hotbar').children.length, 9, `cycle ${cycle + 1} must have exactly 9 hotbar slots`);
+      assert.equal(nodes.get('#grid').children.length, 36, `cycle ${cycle + 1} must have exactly 36 inventory slots`);
+      assert.equal(root.get('keydown')?.size ?? 0, 1, 'keyboard handlers must not multiply within a match');
+      assert.equal(root.get('resize')?.size ?? 0, 0, 'HUD/Input lifecycle must not create resize handlers');
+      assert.equal(doc.count('pointerlockchange'), 1, 'pointer-lock handler must not multiply');
+      assert.equal(canvas.count('click'), 1, 'canvas capture handler must not multiply');
+      hud.closeall();
+      input.close();
+      assert.equal(slots.every(node => node.count('click') === 0), true, 'closed match must detach inventory slot listeners');
+      assert.equal(nodes.get('#hotbar').children.length, 0, 'closed match must release hotbar DOM');
+      assert.equal(nodes.get('#grid').children.length, 0, 'closed match must release inventory DOM');
+      assert.equal(root.get('keydown')?.size ?? 0, 0, 'closed match must remove keyboard handlers');
+      assert.equal(doc.count('pointerlockchange'), 0, 'closed match must remove pointer-lock handler');
+      assert.equal(canvas.count('click'), 0, 'closed match must remove canvas click handler');
+    }
+
+    const counts = { release: 0, capture: 0 };
+    const sent = [];
+    const input = {
+      release: () => { counts.release++; },
+      capture: () => { counts.capture++; }
+    };
+    const chat = new Chat(input, text => sent.push(text));
+    for (let i = 0; i < 55; i++) chat.add({ name: 'Mike', team: 'red', text: `message ${i}` });
+    assert.equal(chat.items.length, chattune.history, 'chat must retain only the configured local history');
+    for (const item of chat.items) item.stamp = Date.now() - (chattune.visible * 1000 + 50);
+    chat.refresh();
+    assert.equal(chat.items.every(item => item.node.classList.contains('fade')), true, 'expired gameplay chat must fade');
+    chat.open(true);
+    assert.equal(chat.field.value, '/', 'slash chat must open command-ready');
+    assert.equal(chat.items.every(item => !item.node.hidden && !item.node.classList.contains('fade')), true, 'opening chat must reveal retained history');
+    chat.field.value = '/shout hello';
+    chat.submit({ preventDefault() {}, stopPropagation() {} });
+    assert.deepEqual(sent, ['/shout hello'], 'Enter/submit must send exactly once and close');
+    assert.equal(chat.shown, false);
+    assert.equal(chat.field.value, '', 'sending chat must clear typed text');
+    chat.open();
+    chat.field.value = 'cancel me';
+    let stopped = 0;
+    chat.key({ key: 'Escape', preventDefault() { stopped++; }, stopPropagation() { stopped++; } });
+    assert.equal(chat.shown, false, 'Escape must close chat');
+    assert.equal(chat.field.value, '', 'Escape must clear typed text');
+    assert.deepEqual(sent, ['/shout hello'], 'Escape must not send');
+    assert.equal(stopped, 2, 'Escape must consume the chat key event');
+    chat.add({ system: true, text: 'Mike died' });
+    assert.equal(chat.items.at(-1).node.textContent, 'Mike died', 'system chat must render without a player name');
+    assert.equal(counts.release, 2, 'each chat open must release gameplay pointer lock/input once');
+    assert.equal(counts.capture, 2, 'each chat close must restore gameplay capture once');
+    chat.closeall();
+  } finally {
+    globalThis.document = olddoc;
+    globalThis.addEventListener = oldadd;
+    globalThis.removeEventListener = oldremove;
+    globalThis.requestAnimationFrame = oldraf;
+    globalThis.cancelAnimationFrame = oldcancel;
+  }
+}
+
+{
+  const names = {
+    players: {
+      mike: { name: 'Mike' },
+      bob: { name: 'Bob' }
+    }
+  };
+  assert.equal(death(names, 'mike', 'bob', 'combat'), 'Mike was killed by Bob');
+  assert.equal(death(names, 'mike', null, 'void'), 'Mike fell into the void');
+  assert.equal(death(names, 'mike', null, 'fall'), 'Mike died');
+}
+
+{
+  const view = readFileSync(new URL('../core/view.js', import.meta.url), 'utf8');
+  const runtime = readFileSync(new URL('../core/runtime.js', import.meta.url), 'utf8');
+  const input = readFileSync(new URL('../core/input.js', import.meta.url), 'utf8');
+  const hud = readFileSync(new URL('./hud.js', import.meta.url), 'utf8');
+  const chat = readFileSync(new URL('./chat.js', import.meta.url), 'utf8');
+  const arena = readFileSync(new URL('./arena.js', import.meta.url), 'utf8');
+  const shopcode = readFileSync(new URL('./shop.js', import.meta.url), 'utf8');
+  const match = readFileSync(new URL('./match.js', import.meta.url), 'utf8');
+  assert.ok(view.includes("removeEventListener('resize', this.bound)"));
+  assert.ok(view.includes('this.render.dispose()'));
+  assert.ok(view.includes('this.render.forceContextLoss?.()'));
+  assert.ok(view.includes('this.render.domElement.remove()'));
+  assert.ok(runtime.includes('this.input.close()'));
+  assert.ok(runtime.includes('this.world.clear()'));
+  assert.ok(runtime.includes('this.view.close()'));
+  assert.ok(input.includes("removeEventListener('pointerlockchange', this.lock)"));
+  assert.ok(input.includes("removeEventListener('click', this.canvas)"));
+  assert.ok(hud.includes('this.hotbar.replaceChildren()'));
+  assert.ok(hud.includes('this.grid.replaceChildren()'));
+  assert.ok(arena.includes('this.hud.closeall()'));
+  assert.ok(arena.includes('this.runtime.close()'));
+  assert.ok(match.includes('this.stage.replaceChildren()'), 'Match close must remove any stale game canvas nodes');
+  assert.ok(match.includes('if (this.task === task) this.task = null'), 'stale match-load completion must not clear a newer load task');
+  assert.ok(chat.includes('history'));
+  assert.ok(shopcode.includes("removeEventListener('click', this.closefn)"));
+}
+
+console.log('Milestone 5 lifecycle/chat plus Milestone 4 economy/interaction regression tests passed');

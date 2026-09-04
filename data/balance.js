@@ -99,4 +99,9 @@ const diamond = 30;
 const emerald = 45;
 const send = 0.1;
 
-export { apple, armor, breaks, combat, diamond, drops, emerald, fireball, forge, health, resist, send, shop, tnt };
+const chat = {
+  visible: 7,
+  history: 50
+};
+
+export { apple, armor, breaks, chat, combat, diamond, drops, emerald, fireball, forge, health, resist, send, shop, tnt };

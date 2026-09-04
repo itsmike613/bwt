@@ -29,6 +29,7 @@ import { Economy } from './economy.js';
 import { Shop } from './shop.js';
 import { Chat } from './chat.js';
 import { Victory } from './victory.js';
+import { death } from './death.js';
 
 function point(value) {
   return value && Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z);
@@ -118,6 +119,7 @@ class Arena {
     this.seq = 0;
     this.net = 0;
     this.stamp = performance.now() / 1000;
+    this.closed = false;
   }
 
   start() {
@@ -195,7 +197,7 @@ class Arena {
       this.chat.close(false);
       this.endbtn.hidden = true;
       this.victory.open(this.room, this.state, this.uid);
-      document.exitPointerLock?.();
+      this.runtime.input.release();
     }
   }
 
@@ -363,7 +365,7 @@ class Arena {
     const player = this.state.players[uid];
     if (!player || player.dead || player.out || this.state.winner) return;
     if (data.kind === 'take') this.take(uid, data.id);
-    if (data.kind === 'hurt' && data.cause === 'fall') this.hurt(uid, Math.min(health.max, Math.max(0, Number(data.amount) || 0)), this.killer(uid), false);
+    if (data.kind === 'hurt' && data.cause === 'fall') this.hurt(uid, Math.min(health.max, Math.max(0, Number(data.amount) || 0)), this.killer(uid), false, 'fall');
     if (data.kind === 'death' && data.cause === 'void') this.die(uid, this.killer(uid));
     if (data.kind === 'bed') this.bed(uid, data.team);
     if (data.kind === 'place') this.place(uid, data);
@@ -395,6 +397,11 @@ class Arena {
       if (target === this.uid) this.apply(data);
       else this.peer.send(target, data);
     }
+  }
+
+  system(text) {
+    if (!this.host || !text) return;
+    this.emit({ kind: 'chat', system: true, text: String(text).slice(0, 200) });
   }
 
   roster(room) {
@@ -471,7 +478,7 @@ class Arena {
     return this.hud.shown || this.shop.shown || this.chat.shown || this.victory.shown;
   }
 
-  finish(uid, killer = null, record = true) {
+  finish(uid, killer = null, record = true, cause = '') {
     this.undig(uid);
     if (record) this.state.score(uid, killer);
     const bag = this.bags.get(uid);
@@ -487,12 +494,13 @@ class Arena {
         this.emit({ kind: 'bag', action: 'add', uid: killer, item: 'emerald', count: loot.emerald });
       }
     }
+    if (record) this.system(death(this.room, uid, killer, cause));
   }
 
-  hurt(uid, amount, killer = null, guard = true) {
+  hurt(uid, amount, killer = null, guard = true, cause = '') {
     const result = this.state.hurt(uid, amount, guard);
     if (!result.ok) return;
-    if (result.death) this.finish(uid, killer);
+    if (result.death) this.finish(uid, killer, true, cause);
     this.emit({ kind: 'state', data: this.state.dump() });
     if (result.death && result.mode === 'wait') this.timer(uid);
   }
@@ -500,7 +508,7 @@ class Arena {
   die(uid, killer = null) {
     const result = this.state.die(uid);
     if (!result.ok) return;
-    this.finish(uid, killer);
+    this.finish(uid, killer, true, 'void');
     this.emit({ kind: 'state', data: this.state.dump() });
     if (result.mode === 'wait') this.timer(uid);
   }
@@ -556,7 +564,7 @@ class Arena {
     const result = this.state.hurt(target, damage(this.held(uid)));
     if (!result.ok) return;
     this.emit({ kind: 'hit', uid: target, from: uid, ...force });
-    if (result.death) this.finish(target, uid);
+    if (result.death) this.finish(target, uid, true, 'combat');
     this.emit({ kind: 'state', data: this.state.dump() });
     if (result.death && result.mode === 'wait') this.timer(target);
   }
@@ -681,7 +689,7 @@ class Arena {
       changed = true;
       this.emit({ kind: 'hit', uid, from: owner, ...force });
       if (result.death) {
-        this.finish(uid, owner && owner !== uid ? owner : this.killer(uid));
+        this.finish(uid, owner && owner !== uid ? owner : this.killer(uid), true, 'blast');
         if (result.mode === 'wait') this.timer(uid);
       }
     }
@@ -942,11 +950,18 @@ class Arena {
   }
 
   close() {
-    this.runtime.stop();
+    if (this.closed) return;
+    this.closed = true;
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
     for (const timer of this.away.values()) clearTimeout(timer);
     this.away.clear();
+    this.shop.closeall();
+    this.chat.closeall();
+    this.victory.closeall();
+    this.hud.closeall();
+    this.endbtn.removeEventListener('click', this.endfn);
+    this.endbtn.hidden = true;
     this.drops.close();
     this.beds.close();
     this.holo.close();
@@ -956,11 +971,12 @@ class Arena {
     this.bombs.close();
     this.balls.close();
     this.fx.close();
-    this.shop.closeall();
-    this.chat.closeall();
-    this.victory.closeall();
-    this.endbtn.removeEventListener('click', this.endfn);
-    this.endbtn.hidden = true;
+    this.runtime.close();
+    this.positions.clear();
+    this.pickups.clear();
+    this.miners.clear();
+    this.attacks.clear();
+    this.credits.clear();
   }
 }
 

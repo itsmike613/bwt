@@ -30,10 +30,11 @@ class Match {
     this.stage.hidden = true;
     this.hud.hidden = true;
     const token = this.token;
-    this.task = this.load(room, uid, peer, token).finally(() => {
-      this.task = null;
+    const task = this.load(room, uid, peer, token).finally(() => {
+      if (this.task === task) this.task = null;
     });
-    return this.task;
+    this.task = task;
+    return task;
   }
 
   async load(room, uid, peer, token) {
@@ -64,8 +65,10 @@ class Match {
 
   close() {
     this.token++;
-    this.arena?.close();
+    const arena = this.arena;
     this.arena = null;
+    arena?.close();
+    this.stage.replaceChildren();
     this.queue.length = 0;
     this.key = '';
     this.room = null;

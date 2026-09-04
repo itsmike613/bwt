@@ -12,6 +12,7 @@ class Runtime {
     this.input = new Input(this.view.render.domElement);
     this.mats = make();
     this.loop = new Loop();
+    this.closed = false;
     this.mesh = chunk => {
       const group = mesh(this.world, chunk, this.mats);
       this.view.scene.add(group);
@@ -30,16 +31,35 @@ class Runtime {
   }
 
   sync() {
-    this.world.flush(this.mesh);
+    if (!this.closed) this.world.flush(this.mesh);
   }
 
   start() {
+    if (this.closed) return;
     this.sync();
     this.loop.start();
   }
 
   stop() {
     this.loop.stop();
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.stop();
+    this.input.close();
+    this.world.clear();
+    for (const material of this.mats.values()) {
+      material.map?.dispose?.();
+      material.dispose?.();
+    }
+    this.mats.clear();
+    this.tick = null;
+    this.frame = null;
+    this.loop.tick = null;
+    this.loop.draw = null;
+    this.view.close();
   }
 }
 

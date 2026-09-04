@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-Milestone 5 — Multiplayer — IMPLEMENTED IN THIS BUILD, LIVE VERIFICATION PENDING
+Milestone 5 — Multiplayer — LIVE BUGFIX BUILD, LIFECYCLE/CHAT VERIFICATION PENDING
 
 Milestone 1 is complete and accepted through the project owner's real two-browser Firebase/WebRTC test on September 3, 2026.
 
@@ -225,7 +225,7 @@ The later Milestone 3 live browser test confirmed that remote players are visibl
 - The shop display adds only a few simple meshes/sprites and does not alter voxel collision, chunk meshing, the editor, or map geometry.
 - The public game remains `index.html`; no second game page or framework was introduced.
 
-## Milestone 5 — IMPLEMENTED IN THIS BUILD, LIVE VERIFICATION PENDING
+## Milestone 5 — LIVE BUGFIX BUILD, LIFECYCLE/CHAT VERIFICATION PENDING
 
 ### Milestone 4 interaction fix
 
@@ -235,6 +235,18 @@ The later Milestone 3 live browser test confirmed that remote players are visibl
 - The voxel ray distance is compared with the shop hit distance, so a normal block in front of a shop wins and shops cannot be used through walls.
 - Normal right-click block placement, TNT, Fireballs, Golden Apples, and existing shop/economy behavior remain unchanged when the shop is not the valid nearest interaction.
 - Regression tests cover direct aim, aiming away while near, block occlusion, and out-of-range shops.
+
+### Live M5 lifecycle bugfix pass
+
+- The project owner's first live Milestone 5 test found New Game lifecycle accumulation and chat-behavior problems, so Milestone 5 is reopened and is not considered live-verified yet.
+- `Hud` construction is now idempotent: it clears stale hotbar/inventory slot DOM before rebuilding, owns its 36 slot click handlers, and removes those handlers/nodes in `closeall()`. Every Arena therefore owns exactly 36 inventory slots and 9 hotbar slots.
+- `Input` now owns named keyboard, mouse, blur, context-menu, pointer-lock, and canvas-click handlers and removes all of them in `close()`. Pointer capture/release also resets pending keys/buttons/clicks so closing chat or another match UI cannot leak an old click into gameplay.
+- `View` now owns and removes its resize handler, disposes the Three.js renderer/render lists, forces WebGL context release when available, removes its canvas, and clears its scene on close.
+- `Runtime.close()` now stops the loop, closes Input, clears world chunk geometry, disposes runtime-owned block textures/materials, clears callbacks, and closes View. `Runtime.stop()` remains the lightweight loop stop used where full disposal is not intended.
+- `Arena.close()` is idempotent and now clears respawn/reconnect timers, tears down HUD/shop/chat/victory DOM listeners, closes all per-match scene systems, clears transient maps/sets, and finally closes the Runtime.
+- `Shop` now owns/removes its persistent Close-button handler and clears generated tab/card DOM during teardown.
+- `Match.close()` removes any stale stage children after Arena disposal, so repeated New Game cycles cannot accumulate game canvases. The match-load promise cleanup now checks task identity so completion of an older cancelled load cannot clear a newer load task.
+- No engine rewrite, networking-topology change, Firebase-config change, or Milestone 6 work was introduced.
 
 ### Multiplayer/networking
 
@@ -257,11 +269,15 @@ The later Milestone 3 live browser test confirmed that remote players are visibl
 
 ### Chat
 
-- `T` opens normal team chat and `/` opens command-ready chat while releasing pointer lock.
-- Default messages are routed only to the sender's team by the authoritative host.
-- `/shout message` is routed to all online match players and is visually distinguished with `[SHOUT]`.
-- No chat cooldown was added.
-- Chat uses compact DataChannel events and does not add a Firebase chat polling/rendering path.
+- `T` opens normal team chat and `/` opens command-ready chat while releasing gameplay input/pointer lock.
+- Escape cancels chat without sending, clears the typed text, closes the input, resets pending gameplay input, and recaptures pointer lock.
+- Enter sends once through the existing host-authoritative chat path, clears the typed text, closes chat, resets pending gameplay input, and recaptures pointer lock.
+- Default messages are routed only to the sender's team by the authoritative host; `/shout message` is still routed to all online match players and remains visually distinguished with `[SHOUT]`.
+- Chat display lifetime is centralized in `data/balance.js` (`chat.visible`, currently 7 seconds) and local retained history is capped by `chat.history` (currently 50 messages).
+- While playing, new chat lines appear and then fade/hide after the visible-duration window. Opening chat reveals retained local history; closing chat hides/fades history older than that window again.
+- Expiry uses one scheduled timeout for the next visible-message boundary rather than frame polling or network spam.
+- Host-authoritative system death messages now share the same local history/fade presentation and are broadcast to everyone using existing validated death attribution: killer-attributed deaths use `Name was killed by Name`, unattributed void deaths use `Name fell into the void`, and other unattributed deaths use `Name died`.
+- No chat cooldown, unrelated commands, Firebase chat polling, or separate death-state system was added.
 
 ### Victory and match statistics
 
@@ -313,11 +329,13 @@ Automated tests currently pass:
   - Forge I/II Iron and Gold interval changes;
   - shop ray-target regression tests for direct aim, aim-away, voxel occlusion, and range;
   - match statistics/disconnect-win regressions;
-  - static chat, `/shout`, End Game, and victory UI/action-path checks.
+  - five consecutive HUD/Input create→dispose lifecycle cycles verifying exactly 9 hotbar slots, exactly 36 inventory slots, detached slot listeners, and no accumulating keyboard/pointer-lock/canvas-click handlers;
+  - static ownership checks for resize-listener removal, renderer/WebGL disposal, canvas removal, world/material cleanup, Arena/Match teardown, and stale match-load task protection;
+  - transient chat history/fade configuration, 50-message retention, history reveal, typed-text clearing, pointer release/recapture, system death-message formatting, `/shout`, End Game, and victory UI/action-path checks.
 
 All project JavaScript passes `node --check`; `rules.json` and `data/map.json` parse as valid JSON; and `data/firebase.js` still contains the accepted permanent Firebase client configuration.
 
-A headless Chromium smoke attempt in the build sandbox was not treated as proof because the app imports Three.js/Firebase modules from external CDNs and the sandbox load stalled on that external dependency path. Automated/static checks therefore do not claim to prove live pointer-lock, WebGL shop visuals, Firebase runtime, or two-browser DataChannel timing. The project owner's next live test should focus on Milestone 5 reconnect/presence, host-disconnect recovery, End Game/New Game, team chat/`/shout`, victory/statistics synchronization, and regression of the corrected shop targeting while confirming Milestones 1–4 remain intact.
+A headless Chromium smoke attempt in the build sandbox is still not treated as proof because the app imports Three.js/Firebase modules from external CDNs and this environment cannot resolve that CDN path. Automated/static checks therefore do not claim live pointer-lock/WebGL/Firebase/DataChannel verification. Milestone 5 remains live verification pending. The next live test should specifically run at least five Match → New Game → Lobby → Match cycles and confirm one game canvas, 9 hotbar slots, 36 inventory slots, no duplicated controls/handlers, normal T/`/`/Escape/Enter chat behavior, roughly 7-second transient chat with retained history on reopen, team chat and `/shout`, and authoritative death messages, while also rechecking the earlier M5 reconnect/presence/host-disconnect/victory paths and preserving Milestones 1–4.
 
 ## Performance / engineering notes
 

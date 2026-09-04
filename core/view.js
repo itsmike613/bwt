@@ -16,11 +16,14 @@ class View {
     this.scene.add(sky, sun);
 
     this.node = node;
+    this.closed = false;
+    this.bound = () => this.resize();
     this.resize();
-    addEventListener('resize', () => this.resize());
+    addEventListener('resize', this.bound);
   }
 
   resize() {
+    if (this.closed) return;
     const width = this.node.clientWidth || innerWidth;
     const height = this.node.clientHeight || innerHeight;
     this.camera.aspect = width / height;
@@ -29,7 +32,19 @@ class View {
   }
 
   draw() {
-    this.render.render(this.scene, this.camera);
+    if (!this.closed) this.render.render(this.scene, this.camera);
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    removeEventListener('resize', this.bound);
+    this.render.setAnimationLoop?.(null);
+    this.render.renderLists?.dispose?.();
+    this.render.dispose();
+    this.render.forceContextLoss?.();
+    this.render.domElement.remove();
+    this.scene.clear();
   }
 }
 
